@@ -1,0 +1,105 @@
+// =====================================================================
+// SahtiConnect – Télémétrie (telemetrie-service, port 9090)
+// Contrat gRPC : réception des mesures des capteurs, détection des seuils,
+// diffusion des alertes.
+//
+// Seuils (CLAUDE.md) :
+//   CRITIQUE : FC < 40 ou > 130 ; SpO2 < 90 ; systolique > 180 ou < 90 ;
+//              température > 39,5 ; chute.
+//   ELEVEE   : FC 110–130 ; SpO2 90–94 ; systolique 160–180 ;
+//              température 38,5–39,5.
+// =====================================================================
+syntax = "proto3";
+
+package sahticonnect.telemetrie;
+
+import "google/protobuf/timestamp.proto";
+
+option java_package = "tn.sahticonnect.telemetrie";
+option java_multiple_files = true;
+option java_outer_classname = "TelemetrieProto";
+
+service Telemetrie {
+  // Le capteur envoie ses mesures en flux ; le serveur répond par un
+  // accusé de réception pour chaque mesure (avec l'alerte éventuelle).
+  rpc EnvoyerMesures (stream Mesure) returns (stream AccuseReception);
+
+  // L'orchestrateur (ou le dashboard) s'abonne aux alertes détectées.
+  rpc SouscrireAlertes (SouscrireAlertesRequest) returns (stream Alerte);
+
+  // Dernières mesures d'un patient.
+  rpc DernieresMesures (DernieresMesuresRequest) returns (DernieresMesuresResponse);
+}
+
+// ===================== ÉNUMÉRATIONS =====================
+
+enum TypeMesure {
+  TYPE_MESURE_NON_SPECIFIE = 0;
+  FREQUENCE_CARDIAQUE = 1;   // bpm
+  SPO2 = 2;                  // %
+  TENSION_SYSTOLIQUE = 3;    // mmHg
+  TENSION_DIASTOLIQUE = 4;   // mmHg
+  TEMPERATURE = 5;           // °C
+  CHUTE = 6;                 // 1 = chute détectée
+}
+
+enum NiveauAlerte {
+  NIVEAU_NON_SPECIFIE = 0;
+  NORMAL = 1;
+  ELEVEE = 2;
+  CRITIQUE = 3;
+}
+
+enum StatutReception {
+  STATUT_NON_SPECIFIE = 0;
+  ACCEPTEE = 1;
+  REJETEE = 2;   // mesure invalide (patient inconnu, valeur hors plage…)
+}
+
+// ===================== MESSAGES =====================
+
+message Mesure {
+  string identifiant_patient = 1;            // PAT-0001
+  string capteur_id = 2;                     // CAP-0001
+  TypeMesure type = 3;
+  double valeur = 4;
+  string unite = 5;                          // bpm, %, mmHg, °C
+  google.protobuf.Timestamp horodatage = 6;
+  int64 sequence = 7;                        // numéro croissant par capteur
+}
+
+message AccuseReception {
+  int64 sequence = 1;                        // reprend Mesure.sequence
+  StatutReception statut = 2;
+  NiveauAlerte niveau = 3;
+  string message = 4;                        // motif de rejet éventuel
+  Alerte alerte = 5;                         // présent si niveau ELEVEE ou CRITIQUE
+}
+
+message Alerte {
+  string id = 1;                             // ALR-2026-000318
+  string identifiant_patient = 2;
+  NiveauAlerte niveau = 3;
+  TypeMesure type_mesure = 4;
+  double valeur = 5;
+  string seuil_franchi = 6;                  // ex. "FC > 130"
+  string message = 7;
+  google.protobuf.Timestamp horodatage = 8;
+  Mesure mesure = 9;                         // mesure déclencheuse
+}
+
+message SouscrireAlertesRequest {
+  repeated string identifiants_patients = 1; // vide = tous les patients
+  NiveauAlerte niveau_minimum = 2;           // NON_SPECIFIE = ELEVEE
+}
+
+message DernieresMesuresRequest {
+  string identifiant_patient = 1;
+  repeated TypeMesure types = 2;             // vide = tous les types
+  int32 nombre = 3;                          // par type ; 0 = 10 par défaut
+}
+
+message DernieresMesuresResponse {
+  string identifiant_patient = 1;
+  repeated Mesure mesures = 2;               // la plus récente en premier
+}
