@@ -6,6 +6,12 @@
 #  - identifiant patient commun à tous les services : PAT-0001 … PAT-0005 ;
 #  - montants en DT avec 3 décimales (Float côté GraphQL) ;
 #  - Date / DateTime : ISO 8601 (graphql-java-extended-scalars).
+#
+# Source des données :
+#  - LOCAL (base du dashboard) : patients, alertes, interventions, traitements ;
+#  - gRPC DernieresMesures (telemetrie-service) : constantes ;
+#  - SOAP consulterHistorique (dossier-cnam-service) : historiqueSoins,
+#    couvert, tauxRemboursement.
 # =====================================================================
 
 scalar Date
@@ -77,7 +83,7 @@ enum LettreCle {
 
 # ===================== TYPES =====================
 
-"Vue consolidée d'un patient pour le médecin."
+"Vue consolidée d'un patient pour le médecin. Source : LOCAL, sauf mention contraire."
 type PatientSuivi {
   id: ID!
   nom: String!
@@ -88,17 +94,21 @@ type PatientSuivi {
   pathologie: String!
   niveauRisque: NiveauRisque!
   medecinReferent: String
-  "Couverture CNAM (source : dossier-cnam-service)"
+  "Source : SOAP consulterHistorique (dossier-cnam-service)."
   couvert: Boolean
+  "Source : SOAP consulterHistorique (dossier-cnam-service)."
   tauxRemboursement: Int
-  "Dernières constantes reçues, la plus récente en premier."
+  "Dernières constantes, la plus récente en premier. Source : gRPC DernieresMesures."
   constantes(type: TypeConstante, limite: Int = 20): [ConstanteVitale!]!
+  "Source : LOCAL."
   alertes(statut: StatutAlerte): [Alerte!]!
+  "Source : LOCAL."
   traitements(actifs: Boolean = true): [Traitement!]!
+  "Source : LOCAL."
   interventions: [Intervention!]!
 }
 
-"Mesure d'une constante vitale (source : telemetrie-service)."
+"Mesure d'une constante vitale. Source : gRPC DernieresMesures (telemetrie-service)."
 type ConstanteVitale {
   id: ID!
   patientId: ID!
@@ -110,7 +120,9 @@ type ConstanteVitale {
   niveau: NiveauAlerte
 }
 
+"Alerte enregistrée par l'orchestrateur (enregistrerAlerte). Source : LOCAL."
 type Alerte {
+  "Identifiant de l'alerte gRPC : ALR-…"
   id: ID!
   patientId: ID!
   niveau: NiveauAlerte!
@@ -124,6 +136,7 @@ type Alerte {
   intervention: Intervention
 }
 
+"Source : LOCAL."
 type Traitement {
   id: ID!
   patientId: ID!
@@ -135,6 +148,7 @@ type Traitement {
   actif: Boolean!
 }
 
+"Source : LOCAL (créée et mise à jour par l'orchestrateur)."
 type Intervention {
   id: ID!
   patientId: ID!
@@ -162,7 +176,7 @@ type ActeCote {
   libelle: String
 }
 
-"Entrée de l'historique de soins (source : consulterHistorique SOAP)."
+"Entrée de l'historique de soins. Source : SOAP consulterHistorique (dossier-cnam-service)."
 type EntreeHistoriqueSoins {
   date: Date!
   etablissement: String!
@@ -193,23 +207,61 @@ input CreerInterventionInput {
   type: TypeIntervention!
   alerteId: ID
   description: String
+  "Identifiant de la ressource REST créée : AMB-… ou RDV-…"
+  referenceExterne: String
+  "Défaut : ALERTE_RECUE."
+  etat: EtatWorkflow
+  "Défaut : EN_ATTENTE."
+  statutFacturation: StatutFacturation
+}
+
+"Tous les champs sont facultatifs : seuls les champs fournis sont modifiés."
+input MettreAJourInterventionInput {
+  etat: EtatWorkflow
+  statutFacturation: StatutFacturation
+  referenceExterne: String
+  numeroFeuilleSoins: String
+  montantTotal: Float
+  partCNAM: Float
+  partPatient: Float
+  description: String
+}
+
+"Alerte reçue du flux gRPC SouscrireAlertes, enregistrée par l'orchestrateur."
+input EnregistrerAlerteInput {
+  "Identifiant de l'alerte gRPC : ALR-…"
+  id: ID!
+  patientId: ID!
+  niveau: NiveauAlerte!
+  typeConstante: TypeConstante!
+  valeur: Float!
+  seuilFranchi: String!
+  message: String
+  horodatage: DateTime!
 }
 
 # ===================== OPÉRATIONS =====================
 
 type Query {
-  "Patient par identifiant ; null s'il n'existe pas."
+  "Patient par identifiant ; null s'il n'existe pas. Source : LOCAL (+ SOAP/gRPC pour certains champs)."
   patient(id: ID!): PatientSuivi
+  "Source : LOCAL."
   patients(filtre: FiltrePatients): [PatientSuivi!]!
-  "Historique paginé ; page commence à 0."
+  "Historique paginé ; page commence à 0. Source : SOAP consulterHistorique."
   historiqueSoins(patientId: ID!, page: Int = 0, taille: Int = 10): PageHistoriqueSoins!
 }
 
 type Mutation {
   creerIntervention(input: CreerInterventionInput!): Intervention!
+  "Mise à jour au fil du workflow (droits vérifiés, fiche publiée, facturation…)."
+  mettreAJourIntervention(id: ID!, input: MettreAJourInterventionInput!): Intervention!
+  "Idempotent sur id : une alerte déjà enregistrée est renvoyée telle quelle."
+  enregistrerAlerte(input: EnregistrerAlerteInput!): Alerte!
 }
 
 type Subscription {
   "Nouvelle intervention ; filtres facultatifs par patient ou par service."
   nouvelleIntervention(patientId: ID, service: String): Intervention!
+  "Nouvelle alerte ; niveauMinimum par défaut ELEVEE (donc toutes les alertes)."
+  nouvelleAlerte(patientId: ID, niveauMinimum: NiveauAlerte): Alerte!
 }
