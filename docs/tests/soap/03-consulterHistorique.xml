@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- PAT-0004 : historique complet (dateDebut / dateFin facultatifs), du plus récent au plus ancien -->
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                  xmlns:cnam="http://sahticonnect.tn/cnam">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <cnam:consulterHistoriqueRequest>
+         <cnam:identifiantPatient>PAT-0004</cnam:identifiantPatient>
+         <cnam:dateDebut>2026-01-01</cnam:dateDebut>
+         <cnam:dateFin>2026-12-31</cnam:dateFin>
+      </cnam:consulterHistoriqueRequest>
+   </soapenv:Body>
+</soapenv:Envelope>

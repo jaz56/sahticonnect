@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- PAT-0001 (APCI) : consultation généraliste C 1 → couvert à 100 %, 45,000 DT pris en charge -->
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                  xmlns:cnam="http://sahticonnect.tn/cnam">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <cnam:verifierDroitsCNAMRequest>
+         <cnam:identifiantPatient>PAT-0001</cnam:identifiantPatient>
+         <cnam:codeVignetteCNAM>VG-2026-000001</cnam:codeVignetteCNAM>
+         <cnam:acte>
+            <cnam:lettreCle>C</cnam:lettreCle>
+            <cnam:coefficient>1</cnam:coefficient>
+            <cnam:libelle>Consultation généraliste</cnam:libelle>
+         </cnam:acte>
+      </cnam:verifierDroitsCNAMRequest>
+   </soapenv:Body>
+</soapenv:Envelope>

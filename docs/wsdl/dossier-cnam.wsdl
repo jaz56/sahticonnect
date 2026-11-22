@@ -1,0 +1,347 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><wsdl:definitions xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/" xmlns:sch="http://sahticonnect.tn/cnam" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" xmlns:tns="http://sahticonnect.tn/cnam" targetNamespace="http://sahticonnect.tn/cnam">
+  <wsdl:types>
+    <xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified" targetNamespace="http://sahticonnect.tn/cnam">
+
+    <!-- ===================== TYPES SIMPLES ===================== -->
+
+    <!-- Identifiant unique patient commun à tous les services : PAT-0001 -->
+    <xs:simpleType name="IdentifiantPatient">
+        <xs:restriction base="xs:string">
+            <xs:pattern value="PAT-\d{4}"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <!-- Code vignette CNAM (fictif) : VG-2026-000123 -->
+    <xs:simpleType name="CodeVignetteCNAM">
+        <xs:restriction base="xs:string">
+            <xs:pattern value="VG-\d{4}-\d{6}"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="Filiere">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="PUBLIQUE"/>
+            <xs:enumeration value="PRIVEE"/>
+            <xs:enumeration value="REMBOURSEMENT"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <!-- Lettres-clés inspirées de la NGAP -->
+    <xs:simpleType name="LettreCle">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="C"/>   <!-- consultation généraliste -->
+            <xs:enumeration value="CS"/>  <!-- consultation spécialiste -->
+            <xs:enumeration value="V"/>   <!-- visite à domicile -->
+            <xs:enumeration value="K"/>   <!-- acte technique -->
+            <xs:enumeration value="B"/>   <!-- biologie -->
+            <xs:enumeration value="Z"/>   <!-- radiologie -->
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="StatutFeuille">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="EMISE"/>
+            <xs:enumeration value="CERTIFIEE"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <!-- Montant en dinars tunisiens (3 décimales = millimes) -->
+    <xs:simpleType name="MontantDT">
+        <xs:restriction base="xs:decimal">
+            <xs:fractionDigits value="3"/>
+            <xs:minInclusive value="0"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="Taux">
+        <xs:restriction base="xs:int">
+            <xs:minInclusive value="0"/>
+            <xs:maxInclusive value="100"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <!-- ===================== TYPES COMPLEXES ===================== -->
+
+    <!-- Acte coté : ex. lettreCle=K coefficient=20 -> "K 20" -->
+    <xs:complexType name="ActeCote">
+        <xs:sequence>
+            <xs:element name="lettreCle" type="tns:LettreCle"/>
+            <xs:element name="coefficient" type="xs:decimal"/>
+            <xs:element minOccurs="0" name="libelle" type="xs:string"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="LigneActe">
+        <xs:sequence>
+            <xs:element name="acte" type="tns:ActeCote"/>
+            <xs:element name="montant" type="tns:MontantDT"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="Assure">
+        <xs:sequence>
+            <xs:element name="identifiantPatient" type="tns:IdentifiantPatient"/>
+            <xs:element name="nom" type="xs:string"/>
+            <xs:element name="prenom" type="xs:string"/>
+            <xs:element name="dateNaissance" type="xs:date"/>
+            <xs:element name="matriculeCNAM" type="xs:string"/>
+            <xs:element name="codeVignetteCNAM" type="tns:CodeVignetteCNAM"/>
+            <xs:element name="filiere" type="tns:Filiere"/>
+            <xs:element name="dateFinValidite" type="xs:date"/>
+            <xs:element name="apci" type="xs:boolean"/>
+            <xs:element minOccurs="0" name="codeAPCI" type="xs:string"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="Couverture">
+        <xs:sequence>
+            <xs:element name="couvert" type="xs:boolean"/>
+            <xs:element name="tauxRemboursement" type="tns:Taux"/>
+            <xs:element minOccurs="0" name="motif" type="xs:string"/> <!-- ex. "Vignette expirée", "APCI 100%" -->
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="FeuilleDeSoins">
+        <xs:sequence>
+            <xs:element name="numero" type="xs:string"/>               <!-- FS-2026-000001 -->
+            <xs:element name="identifiantPatient" type="tns:IdentifiantPatient"/>
+            <xs:element name="dateSoins" type="xs:date"/>
+            <xs:element name="etablissement" type="xs:string"/>
+            <xs:element name="medecin" type="xs:string"/>
+            <xs:element maxOccurs="unbounded" name="lignes" type="tns:LigneActe"/>
+            <xs:element name="montantTotal" type="tns:MontantDT"/>
+            <xs:element name="tauxApplique" type="tns:Taux"/>
+            <xs:element name="partCNAM" type="tns:MontantDT"/>
+            <xs:element name="partPatient" type="tns:MontantDT"/>
+            <xs:element name="statut" type="tns:StatutFeuille"/>
+            <xs:element name="codeCertification" type="xs:string"/>   <!-- empreinte SHA-256 simulée -->
+            <xs:element minOccurs="0" name="referenceIntervention" type="xs:string"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="EntreeHistorique">
+        <xs:sequence>
+            <xs:element name="date" type="xs:date"/>
+            <xs:element name="etablissement" type="xs:string"/>
+            <xs:element name="diagnostic" type="xs:string"/>
+            <xs:element maxOccurs="unbounded" name="actes" type="tns:ActeCote"/>
+            <xs:element minOccurs="0" name="numeroFeuilleSoins" type="xs:string"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="PriseEnCharge">
+        <xs:sequence>
+            <xs:element name="libelle" type="xs:string"/>              <!-- ex. "Hôpital public" -->
+            <xs:element name="filiere" type="tns:Filiere"/>
+            <xs:element maxOccurs="unbounded" name="actes" type="tns:ActeCote"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="GarantieCalculee">
+        <xs:sequence>
+            <xs:element name="libelle" type="xs:string"/>
+            <xs:element name="montantTotal" type="tns:MontantDT"/>
+            <xs:element name="tauxApplique" type="tns:Taux"/>
+            <xs:element name="partCNAM" type="tns:MontantDT"/>
+            <xs:element name="partPatient" type="tns:MontantDT"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <!-- ===================== OPÉRATION 1 : verifierDroitsCNAM ===================== -->
+
+    <xs:element name="verifierDroitsCNAMRequest">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="identifiantPatient" type="tns:IdentifiantPatient"/>
+                <xs:element name="codeVignetteCNAM" type="tns:CodeVignetteCNAM"/>
+                <xs:element name="acte" type="tns:ActeCote"/>
+                <xs:element minOccurs="0" name="dateActe" type="xs:date"/> <!-- défaut : aujourd'hui -->
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="verifierDroitsCNAMResponse">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="assure" type="tns:Assure"/>
+                <xs:element name="couverture" type="tns:Couverture"/>
+                <xs:element name="montantEstime" type="tns:MontantDT"/>
+                <xs:element name="partCNAMEstimee" type="tns:MontantDT"/>
+                <xs:element name="partPatientEstimee" type="tns:MontantDT"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <!-- ===================== OPÉRATION 2 : emettreFeuilleDeSoins ===================== -->
+
+    <xs:element name="emettreFeuilleDeSoinsRequest">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="identifiantPatient" type="tns:IdentifiantPatient"/>
+                <xs:element name="codeVignetteCNAM" type="tns:CodeVignetteCNAM"/>
+                <xs:element name="dateSoins" type="xs:date"/>
+                <xs:element name="etablissement" type="xs:string"/>
+                <xs:element name="medecin" type="xs:string"/>
+                <xs:element maxOccurs="unbounded" name="actes" type="tns:ActeCote"/>
+                <xs:element minOccurs="0" name="referenceIntervention" type="xs:string"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="emettreFeuilleDeSoinsResponse">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="feuilleDeSoins" type="tns:FeuilleDeSoins"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <!-- ===================== OPÉRATION 3 : consulterHistorique ===================== -->
+
+    <xs:element name="consulterHistoriqueRequest">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="identifiantPatient" type="tns:IdentifiantPatient"/>
+                <xs:element minOccurs="0" name="dateDebut" type="xs:date"/>
+                <xs:element minOccurs="0" name="dateFin" type="xs:date"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="consulterHistoriqueResponse">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="assure" type="tns:Assure"/>
+                <xs:element maxOccurs="unbounded" minOccurs="0" name="entrees" type="tns:EntreeHistorique"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <!-- ===================== OPÉRATION 4 : comparerGaranties ===================== -->
+
+    <xs:element name="comparerGarantiesRequest">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="identifiantPatient" type="tns:IdentifiantPatient"/>
+                <xs:element name="priseEnChargeA" type="tns:PriseEnCharge"/>
+                <xs:element name="priseEnChargeB" type="tns:PriseEnCharge"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="comparerGarantiesResponse">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="resultatA" type="tns:GarantieCalculee"/>
+                <xs:element name="resultatB" type="tns:GarantieCalculee"/>
+                <xs:element name="differencePartPatient" type="tns:MontantDT"/>
+                <xs:element name="recommandation" type="xs:string"/> <!-- libellé le moins coûteux pour le patient -->
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+</xs:schema>
+  </wsdl:types>
+  <wsdl:message name="emettreFeuilleDeSoinsRequest">
+    <wsdl:part element="tns:emettreFeuilleDeSoinsRequest" name="emettreFeuilleDeSoinsRequest">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="verifierDroitsCNAMRequest">
+    <wsdl:part element="tns:verifierDroitsCNAMRequest" name="verifierDroitsCNAMRequest">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="consulterHistoriqueResponse">
+    <wsdl:part element="tns:consulterHistoriqueResponse" name="consulterHistoriqueResponse">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="comparerGarantiesRequest">
+    <wsdl:part element="tns:comparerGarantiesRequest" name="comparerGarantiesRequest">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="consulterHistoriqueRequest">
+    <wsdl:part element="tns:consulterHistoriqueRequest" name="consulterHistoriqueRequest">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="emettreFeuilleDeSoinsResponse">
+    <wsdl:part element="tns:emettreFeuilleDeSoinsResponse" name="emettreFeuilleDeSoinsResponse">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="comparerGarantiesResponse">
+    <wsdl:part element="tns:comparerGarantiesResponse" name="comparerGarantiesResponse">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="verifierDroitsCNAMResponse">
+    <wsdl:part element="tns:verifierDroitsCNAMResponse" name="verifierDroitsCNAMResponse">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:portType name="DossierCnamPort">
+    <wsdl:operation name="emettreFeuilleDeSoins">
+      <wsdl:input message="tns:emettreFeuilleDeSoinsRequest" name="emettreFeuilleDeSoinsRequest">
+    </wsdl:input>
+      <wsdl:output message="tns:emettreFeuilleDeSoinsResponse" name="emettreFeuilleDeSoinsResponse">
+    </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="verifierDroitsCNAM">
+      <wsdl:input message="tns:verifierDroitsCNAMRequest" name="verifierDroitsCNAMRequest">
+    </wsdl:input>
+      <wsdl:output message="tns:verifierDroitsCNAMResponse" name="verifierDroitsCNAMResponse">
+    </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="consulterHistorique">
+      <wsdl:input message="tns:consulterHistoriqueRequest" name="consulterHistoriqueRequest">
+    </wsdl:input>
+      <wsdl:output message="tns:consulterHistoriqueResponse" name="consulterHistoriqueResponse">
+    </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="comparerGaranties">
+      <wsdl:input message="tns:comparerGarantiesRequest" name="comparerGarantiesRequest">
+    </wsdl:input>
+      <wsdl:output message="tns:comparerGarantiesResponse" name="comparerGarantiesResponse">
+    </wsdl:output>
+    </wsdl:operation>
+  </wsdl:portType>
+  <wsdl:binding name="DossierCnamPortSoap11" type="tns:DossierCnamPort">
+    <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
+    <wsdl:operation name="emettreFeuilleDeSoins">
+      <soap:operation soapAction=""/>
+      <wsdl:input name="emettreFeuilleDeSoinsRequest">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="emettreFeuilleDeSoinsResponse">
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="verifierDroitsCNAM">
+      <soap:operation soapAction=""/>
+      <wsdl:input name="verifierDroitsCNAMRequest">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="verifierDroitsCNAMResponse">
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="consulterHistorique">
+      <soap:operation soapAction=""/>
+      <wsdl:input name="consulterHistoriqueRequest">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="consulterHistoriqueResponse">
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="comparerGaranties">
+      <soap:operation soapAction=""/>
+      <wsdl:input name="comparerGarantiesRequest">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="comparerGarantiesResponse">
+        <soap:body use="literal"/>
+      </wsdl:output>
+    </wsdl:operation>
+  </wsdl:binding>
+  <wsdl:service name="DossierCnamPortService">
+    <wsdl:port binding="tns:DossierCnamPortSoap11" name="DossierCnamPortSoap11">
+      <soap:address location="http://localhost:8081/ws"/>
+    </wsdl:port>
+  </wsdl:service>
+</wsdl:definitions>

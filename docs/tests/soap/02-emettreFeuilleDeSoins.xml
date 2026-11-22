@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- PAT-0003 (filière publique 80 %) : CS 1 + K 10 = 90,000 DT → part CNAM 72,000, part patient 18,000 -->
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                  xmlns:cnam="http://sahticonnect.tn/cnam">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <cnam:emettreFeuilleDeSoinsRequest>
+         <cnam:identifiantPatient>PAT-0003</cnam:identifiantPatient>
+         <cnam:codeVignetteCNAM>VG-2026-000003</cnam:codeVignetteCNAM>
+         <cnam:dateSoins>2026-11-22</cnam:dateSoins>
+         <cnam:etablissement>Hôpital Abderrahmen Mami</cnam:etablissement>
+         <cnam:medecin>Dr Sami Kallel</cnam:medecin>
+         <cnam:actes>
+            <cnam:lettreCle>CS</cnam:lettreCle>
+            <cnam:coefficient>1</cnam:coefficient>
+            <cnam:libelle>Consultation pneumologie</cnam:libelle>
+         </cnam:actes>
+         <cnam:actes>
+            <cnam:lettreCle>K</cnam:lettreCle>
+            <cnam:coefficient>10</cnam:coefficient>
+            <cnam:libelle>Aérosolthérapie</cnam:libelle>
+         </cnam:actes>
+         <cnam:referenceIntervention>INT-2026-000001</cnam:referenceIntervention>
+      </cnam:emettreFeuilleDeSoinsRequest>
+   </soapenv:Body>
+</soapenv:Envelope>

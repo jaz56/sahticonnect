@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- PAT-0004 : C 1 + B 20 (51,000 DT) à l'hôpital public (80 %) ou en clinique privée (50 %) -->
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                  xmlns:cnam="http://sahticonnect.tn/cnam">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <cnam:comparerGarantiesRequest>
+         <cnam:identifiantPatient>PAT-0004</cnam:identifiantPatient>
+         <cnam:priseEnChargeA>
+            <cnam:libelle>Hôpital public</cnam:libelle>
+            <cnam:filiere>PUBLIQUE</cnam:filiere>
+            <cnam:actes><cnam:lettreCle>C</cnam:lettreCle><cnam:coefficient>1</cnam:coefficient></cnam:actes>
+            <cnam:actes><cnam:lettreCle>B</cnam:lettreCle><cnam:coefficient>20</cnam:coefficient></cnam:actes>
+         </cnam:priseEnChargeA>
+         <cnam:priseEnChargeB>
+            <cnam:libelle>Clinique privée</cnam:libelle>
+            <cnam:filiere>PRIVEE</cnam:filiere>
+            <cnam:actes><cnam:lettreCle>C</cnam:lettreCle><cnam:coefficient>1</cnam:coefficient></cnam:actes>
+            <cnam:actes><cnam:lettreCle>B</cnam:lettreCle><cnam:coefficient>20</cnam:coefficient></cnam:actes>
+         </cnam:priseEnChargeB>
+      </cnam:comparerGarantiesRequest>
+   </soapenv:Body>
+</soapenv:Envelope>

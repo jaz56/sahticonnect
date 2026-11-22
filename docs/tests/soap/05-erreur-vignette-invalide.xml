@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Cas d'erreur : la vignette VG-2026-000003 n'appartient pas à PAT-0001 → SOAP Fault (Client) -->
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
+                  xmlns:cnam="http://sahticonnect.tn/cnam">
+   <soapenv:Header/>
+   <soapenv:Body>
+      <cnam:verifierDroitsCNAMRequest>
+         <cnam:identifiantPatient>PAT-0001</cnam:identifiantPatient>
+         <cnam:codeVignetteCNAM>VG-2026-000003</cnam:codeVignetteCNAM>
+         <cnam:acte>
+            <cnam:lettreCle>C</cnam:lettreCle>
+            <cnam:coefficient>1</cnam:coefficient>
+         </cnam:acte>
+      </cnam:verifierDroitsCNAMRequest>
+   </soapenv:Body>
+</soapenv:Envelope>
