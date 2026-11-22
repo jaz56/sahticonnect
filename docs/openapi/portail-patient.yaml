@@ -321,9 +321,11 @@ paths:
       summary: Prendre un rendez-vous
       description: |
         Deux modes :
-        - **standard** : `creneauId` obligatoire, le créneau doit être libre ;
+        - **standard** : `medecinId` et `creneauId` obligatoires, le créneau doit être libre
+          (400 si l'un des deux manque) ;
         - **urgence** (`type = URGENCE`, utilisé par l'orchestrateur sur alerte ÉLEVÉE) :
-          `creneauId` facultatif, le service attribue le premier créneau libre dans les 2 h
+          `medecinId` facultatif (par défaut, le médecin traitant du patient),
+          `creneauId` facultatif ; le service attribue le premier créneau libre dans les 2 h
           et renvoie 409 s'il n'en existe aucun.
       requestBody:
         required: true
@@ -342,9 +344,9 @@ paths:
                   motif: Contrôle trimestriel
               urgence:
                 summary: RDV d'urgence déclenché par l'orchestrateur (alerte ÉLEVÉE)
+                description: medecinId omis → médecin traitant du patient (MED-002)
                 value:
                   identifiantPatient: PAT-0002
-                  medecinId: MED-002
                   type: URGENCE
                   motif: 'Alerte ÉLEVÉE : tension systolique 172 mmHg'
                   referenceAlerte: ALR-2026-000317
@@ -729,12 +731,17 @@ components:
 
     RendezVousCreation:
       type: object
-      required: [identifiantPatient, medecinId, type]
+      required: [identifiantPatient, type]
+      description: |
+        `medecinId` et `creneauId` sont obligatoires sauf si `type = URGENCE`
+        (règle vérifiée par le service, réponse 400 sinon).
       properties:
         identifiantPatient:
           $ref: '#/components/schemas/IdentifiantPatient'
         medecinId:
-          $ref: '#/components/schemas/IdentifiantMedecin'
+          allOf:
+            - $ref: '#/components/schemas/IdentifiantMedecin'
+          description: 'Obligatoire sauf si `type = URGENCE` (défaut : médecin traitant du patient)'
         creneauId:
           type: string
           description: Obligatoire sauf si `type = URGENCE`
