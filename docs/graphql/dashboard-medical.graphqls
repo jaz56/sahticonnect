@@ -1,0 +1,215 @@
+# =====================================================================
+# SahtiConnect – Dashboard médical (dashboard-medical-service, port 8083)
+# Schéma GraphQL (schema-first, Spring for GraphQL).
+#
+# Conventions :
+#  - identifiant patient commun à tous les services : PAT-0001 … PAT-0005 ;
+#  - montants en DT avec 3 décimales (Float côté GraphQL) ;
+#  - Date / DateTime : ISO 8601 (graphql-java-extended-scalars).
+# =====================================================================
+
+scalar Date
+scalar DateTime
+
+# ===================== ÉNUMÉRATIONS =====================
+
+"Niveau de risque global du patient, calculé à partir des alertes récentes."
+enum NiveauRisque {
+  FAIBLE
+  MODERE
+  ELEVE
+  CRITIQUE
+}
+
+"Niveau d'une alerte (règles de seuils de CLAUDE.md)."
+enum NiveauAlerte {
+  ELEVEE
+  CRITIQUE
+}
+
+"Type de constante vitale (aligné sur TypeMesure du contrat gRPC)."
+enum TypeConstante {
+  FREQUENCE_CARDIAQUE
+  SPO2
+  TENSION_SYSTOLIQUE
+  TENSION_DIASTOLIQUE
+  TEMPERATURE
+  CHUTE
+}
+
+enum StatutAlerte {
+  NOUVELLE
+  PRISE_EN_CHARGE
+  RESOLUE
+}
+
+enum TypeIntervention {
+  AMBULANCE
+  RDV_URGENCE
+  TELECONSULTATION
+  VISITE_DOMICILE
+}
+
+"États du workflow de l'orchestrateur."
+enum EtatWorkflow {
+  ALERTE_RECUE
+  DROITS_VERIFIES
+  INTERVENTION_DECLENCHEE
+  FICHE_PUBLIEE
+  FACTUREE
+  ECHEC
+}
+
+enum StatutFacturation {
+  EN_ATTENTE
+  FACTUREE
+  A_REGULARISER
+}
+
+enum LettreCle {
+  C
+  CS
+  V
+  K
+  B
+  Z
+}
+
+# ===================== TYPES =====================
+
+"Vue consolidée d'un patient pour le médecin."
+type PatientSuivi {
+  id: ID!
+  nom: String!
+  prenom: String!
+  dateNaissance: Date
+  age: Int
+  service: String!
+  pathologie: String!
+  niveauRisque: NiveauRisque!
+  medecinReferent: String
+  "Couverture CNAM (source : dossier-cnam-service)"
+  couvert: Boolean
+  tauxRemboursement: Int
+  "Dernières constantes reçues, la plus récente en premier."
+  constantes(type: TypeConstante, limite: Int = 20): [ConstanteVitale!]!
+  alertes(statut: StatutAlerte): [Alerte!]!
+  traitements(actifs: Boolean = true): [Traitement!]!
+  interventions: [Intervention!]!
+}
+
+"Mesure d'une constante vitale (source : telemetrie-service)."
+type ConstanteVitale {
+  id: ID!
+  patientId: ID!
+  type: TypeConstante!
+  valeur: Float!
+  unite: String!
+  horodatage: DateTime!
+  "Niveau détecté pour cette mesure ; null si dans les normes."
+  niveau: NiveauAlerte
+}
+
+type Alerte {
+  id: ID!
+  patientId: ID!
+  niveau: NiveauAlerte!
+  statut: StatutAlerte!
+  typeConstante: TypeConstante!
+  valeur: Float!
+  "Description du seuil franchi, ex. « FC > 130 »."
+  seuilFranchi: String!
+  message: String
+  horodatage: DateTime!
+  intervention: Intervention
+}
+
+type Traitement {
+  id: ID!
+  patientId: ID!
+  medicament: String!
+  posologie: String!
+  dateDebut: Date!
+  dateFin: Date
+  prescripteur: String
+  actif: Boolean!
+}
+
+type Intervention {
+  id: ID!
+  patientId: ID!
+  patient: PatientSuivi!
+  type: TypeIntervention!
+  etat: EtatWorkflow!
+  statutFacturation: StatutFacturation!
+  "Alerte à l'origine de l'intervention (null si créée manuellement)."
+  alerte: Alerte
+  description: String
+  "Identifiant de la ressource REST créée : AMB-… ou RDV-…"
+  referenceExterne: String
+  "Numéro de feuille de soins SOAP : FS-…"
+  numeroFeuilleSoins: String
+  montantTotal: Float
+  partCNAM: Float
+  partPatient: Float
+  dateCreation: DateTime!
+  dateMiseAJour: DateTime
+}
+
+type ActeCote {
+  lettreCle: LettreCle!
+  coefficient: Float!
+  libelle: String
+}
+
+"Entrée de l'historique de soins (source : consulterHistorique SOAP)."
+type EntreeHistoriqueSoins {
+  date: Date!
+  etablissement: String!
+  diagnostic: String!
+  actes: [ActeCote!]!
+  numeroFeuilleSoins: String
+}
+
+type PageHistoriqueSoins {
+  elements: [EntreeHistoriqueSoins!]!
+  page: Int!
+  taille: Int!
+  totalElements: Int!
+  totalPages: Int!
+}
+
+# ===================== ENTRÉES =====================
+
+"Tous les critères sont facultatifs et combinés par ET."
+input FiltrePatients {
+  service: String
+  pathologie: String
+  niveauRisque: NiveauRisque
+}
+
+input CreerInterventionInput {
+  patientId: ID!
+  type: TypeIntervention!
+  alerteId: ID
+  description: String
+}
+
+# ===================== OPÉRATIONS =====================
+
+type Query {
+  "Patient par identifiant ; null s'il n'existe pas."
+  patient(id: ID!): PatientSuivi
+  patients(filtre: FiltrePatients): [PatientSuivi!]!
+  "Historique paginé ; page commence à 0."
+  historiqueSoins(patientId: ID!, page: Int = 0, taille: Int = 10): PageHistoriqueSoins!
+}
+
+type Mutation {
+  creerIntervention(input: CreerInterventionInput!): Intervention!
+}
+
+type Subscription {
+  "Nouvelle intervention ; filtres facultatifs par patient ou par service."
+  nouvelleIntervention(patientId: ID, service: String): Intervention!
+}
