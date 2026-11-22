@@ -29,10 +29,11 @@ Une base PostgreSQL par service (database-per-service).
   Les contrats sont la source de vérité : ne pas les modifier sans le signaler.
 
 ## Règles métier
-- Seuils CRITIQUE : FC < 40 ou > 130 ; SpO2 < 90 ; systolique > 180 ou < 90 ; température > 39,5 ; chute.
-- Seuils ÉLEVÉE : FC 110–130 ; SpO2 90–94 ; systolique 160–180 ; température 38,5–39,5.
+- Seuils CRITIQUE : FC < 40 ou > 130 ; SpO2 < 90 ; systolique > 180 ou < 90 ; diastolique > 120 ; température > 39,5 ; chute.
+- Seuils ÉLEVÉE : FC 110–130 ; SpO2 90–94 ; systolique 160–180 ; diastolique > 100 ; température 38,5–39,5.
 - CRITIQUE → ambulance (REST). ÉLEVÉE → RDV d'urgence dans les 2 h (REST).
 - Remboursement : APCI 100 % ; filière publique 80 % ; autres cas 50 % ; vignette expirée → non couvert.
+- `statutFacturation` : `EN_ATTENTE` | `FACTUREE` | `A_REGULARISER`.
 - Patient non couvert → intervention quand même, `statutFacturation = A_REGULARISER`.
 - Lettres-clés (valeurs fictives) : C = 45, CS = 60, V = 55, K = 3, B = 0,3, Z = 2 DT.
 - États du workflow : ALERTE_RECUE → DROITS_VERIFIES → INTERVENTION_DECLENCHEE → FICHE_PUBLIEE → FACTUREE | ECHEC.
@@ -48,8 +49,13 @@ Une base PostgreSQL par service (database-per-service).
 
 ## Plan et avancement
 - [x] Étape 0 : cadrage et structure du dépôt
-- [ ] Étape 1 : contrats (XSD SOAP fait ; restent OpenAPI, SDL GraphQL, .proto)
+- [x] Étape 1 : contrats (XSD SOAP, OpenAPI, SDL GraphQL, .proto)
 - [ ] Étape 2 : les 4 services
+  - REST : générer les interfaces depuis `docs/openapi/portail-patient.yaml` avec
+    `openapi-generator-maven-plugin` (`interfaceOnly=true`) ; les contrôleurs les implémentent.
+  - gRPC : la détection des seuils (`telemetrie-service`) applique les règles ci-dessus, y compris
+    la diastolique (`TENSION_DIASTOLIQUE` : ÉLEVÉE > 100, CRITIQUE > 120), comme documenté dans
+    `docs/proto/telemetrie.proto`.
 - [ ] Étape 3 : capteur simulé et détection des seuils
 - [ ] Étape 4 : orchestrateur
 - [ ] Étape 5 : gateway (+ Keycloak en bonus)
