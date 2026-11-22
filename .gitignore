@@ -1,0 +1,11 @@
+﻿target/
+build/
+.idea/
+*.iml
+.vscode/
+node_modules/
+dist/
+.angular/
+__pycache__/
+*.pyc
+.env
