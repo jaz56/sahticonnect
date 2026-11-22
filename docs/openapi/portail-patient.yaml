@@ -1,0 +1,1038 @@
+openapi: 3.0.3
+info:
+  title: SahtiConnect – Portail patient
+  version: 1.0.0
+  description: |
+    API REST du service `portail-patient-service` (port 8082).
+
+    Couvre le profil patient, l'annuaire des médecins, les créneaux, les rendez-vous,
+    les ordonnances et les demandes d'ambulance.
+
+    Conventions :
+    - identifiant patient commun à tous les services : `PAT-0001` … `PAT-0005` ;
+    - montants en dinars tunisiens (DT) avec 3 décimales ;
+    - dates au format ISO 8601 (`2026-11-22`, `2026-11-22T09:30:00+01:00`) ;
+    - toutes les erreurs renvoient un objet `Erreur`.
+
+    Règles métier utilisées par l'orchestrateur :
+    - alerte CRITIQUE → `POST /urgences/ambulances` ;
+    - alerte ÉLEVÉE → `POST /rendez-vous` avec `type = URGENCE` dans les 2 h.
+servers:
+  - url: http://localhost:8082
+    description: Accès direct au service (développement)
+tags:
+  - name: Patients
+    description: Profil patient
+  - name: Médecins
+    description: Annuaire des médecins
+  - name: Créneaux
+    description: Disponibilités des médecins
+  - name: Rendez-vous
+    description: Prise, modification et annulation de rendez-vous
+  - name: Ordonnances
+    description: Ordonnances du patient
+  - name: Urgences
+    description: Demandes d'ambulance
+
+paths:
+  # ===================== PATIENTS =====================
+  /patients/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdentifiantPatientPath'
+    get:
+      tags: [Patients]
+      operationId: consulterPatient
+      summary: Consulter le profil d'un patient
+      responses:
+        '200':
+          description: Profil du patient
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+              examples:
+                ahmed:
+                  $ref: '#/components/examples/PatientAhmed'
+        '400':
+          $ref: '#/components/responses/RequeteInvalide'
+        '404':
+          $ref: '#/components/responses/PatientIntrouvable'
+    put:
+      tags: [Patients]
+      operationId: modifierPatient
+      summary: Mettre à jour les coordonnées d'un patient
+      description: |
+        Seules les coordonnées sont modifiables (téléphone, email, adresse, contact d'urgence).
+        L'identité et la couverture CNAM relèvent du service `dossier-cnam-service`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatientMiseAJour'
+            examples:
+              nouveauTelephone:
+                summary: Changement de téléphone et d'adresse
+                value:
+                  telephone: '+216 98 123 456'
+                  email: ahmed.bensalah@exemple.tn
+                  adresse: 12 rue de Marseille, 1000 Tunis
+                  contactUrgence:
+                    nom: Fatma Ben Salah
+                    lien: Épouse
+                    telephone: '+216 22 333 444'
+      responses:
+        '200':
+          description: Profil mis à jour
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+              examples:
+                ahmed:
+                  $ref: '#/components/examples/PatientAhmed'
+        '400':
+          $ref: '#/components/responses/RequeteInvalide'
+        '404':
+          $ref: '#/components/responses/PatientIntrouvable'
+        '409':
+          description: Email déjà utilisé par un autre patient
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erreur'
+              example:
+                horodatage: '2026-11-22T10:15:00+01:00'
+                statut: 409
+                code: EMAIL_DEJA_UTILISE
+                message: L'email ahmed.bensalah@exemple.tn est déjà associé à un autre patient
+                chemin: /patients/PAT-0001
+
+  /patients/{id}/ordonnances:
+    parameters:
+      - $ref: '#/components/parameters/IdentifiantPatientPath'
+    get:
+      tags: [Ordonnances]
+      operationId: listerOrdonnancesPatient
+      summary: Lister les ordonnances d'un patient
+      parameters:
+        - name: actives
+          in: query
+          description: Si `true`, ne renvoie que les ordonnances encore valides
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Ordonnances du patient (la plus récente en premier)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Ordonnance'
+              example:
+                - id: ORD-2026-000014
+                  identifiantPatient: PAT-0001
+                  medecinId: MED-001
+                  medecinNom: Dr Mohamed Chaabane
+                  dateEmission: '2026-11-02'
+                  dateFinValidite: '2027-02-02'
+                  renouvelable: true
+                  lignes:
+                    - medicament: Furosémide 40 mg
+                      posologie: 1 comprimé le matin
+                      dureeJours: 90
+                    - medicament: Bisoprolol 5 mg
+                      posologie: 1 comprimé par jour
+                      dureeJours: 90
+                  remarques: Contrôle du poids quotidien
+        '400':
+          $ref: '#/components/responses/RequeteInvalide'
+        '404':
+          $ref: '#/components/responses/PatientIntrouvable'
+
+  # ===================== MÉDECINS =====================
+  /medecins:
+    get:
+      tags: [Médecins]
+      operationId: listerMedecins
+      summary: Lister les médecins
+      parameters:
+        - name: specialite
+          in: query
+          description: Filtre par spécialité (insensible à la casse)
+          required: false
+          schema:
+            type: string
+          example: Cardiologie
+        - name: ville
+          in: query
+          required: false
+          schema:
+            type: string
+          example: Tunis
+      responses:
+        '200':
+          description: Liste des médecins
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Medecin'
+              example:
+                - id: MED-001
+                  nom: Chaabane
+                  prenom: Mohamed
+                  specialite: Cardiologie
+                  etablissement: Hôpital Charles Nicolle
+                  ville: Tunis
+                  filiere: PUBLIQUE
+                  teleconsultation: true
+                  tarifConsultation: 60.000
+                - id: MED-002
+                  nom: Haddad
+                  prenom: Ines
+                  specialite: Médecine générale
+                  etablissement: Cabinet Dr Haddad
+                  ville: Ariana
+                  filiere: PRIVEE
+                  teleconsultation: true
+                  tarifConsultation: 45.000
+        '400':
+          $ref: '#/components/responses/RequeteInvalide'
+
+  # ===================== CRÉNEAUX =====================
+  /creneaux:
+    get:
+      tags: [Créneaux]
+      operationId: rechercherCreneaux
+      summary: Rechercher les créneaux d'un médecin
+      parameters:
+        - name: medecinId
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/IdentifiantMedecin'
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+          example: '2026-11-24'
+        - name: type
+          in: query
+          required: false
+          description: Type de consultation recherché (tous les types si absent)
+          schema:
+            $ref: '#/components/schemas/TypeConsultation'
+        - name: disponibles
+          in: query
+          required: false
+          description: Si `true` (défaut), ne renvoie que les créneaux libres
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Créneaux du médecin pour la date demandée
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Creneau'
+              example:
+                - id: CRN-20261124-001-0900
+                  medecinId: MED-001
+                  debut: '2026-11-24T09:00:00+01:00'
+                  fin: '2026-11-24T09:30:00+01:00'
+                  type: PRESENTIEL
+                  disponible: true
+                - id: CRN-20261124-001-0930
+                  medecinId: MED-001
+                  debut: '2026-11-24T09:30:00+01:00'
+                  fin: '2026-11-24T10:00:00+01:00'
+                  type: TELECONSULTATION
+                  disponible: true
+        '400':
+          $ref: '#/components/responses/RequeteInvalide'
+        '404':
+          $ref: '#/components/responses/MedecinIntrouvable'
+
+  # ===================== RENDEZ-VOUS =====================
+  /rendez-vous:
+    get:
+      tags: [Rendez-vous]
+      operationId: listerRendezVous
+      summary: Lister les rendez-vous
+      parameters:
+        - name: patientId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/IdentifiantPatient'
+        - name: medecinId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/IdentifiantMedecin'
+        - name: date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+        - name: statut
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/StatutRendezVous'
+      responses:
+        '200':
+          description: Rendez-vous correspondant aux filtres
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RendezVous'
+              examples:
+                liste:
+                  value:
+                    - id: RDV-2026-000042
+                      identifiantPatient: PAT-0001
+                      medecinId: MED-001
+                      creneauId: CRN-20261124-001-0900
+                      debut: '2026-11-24T09:00:00+01:00'
+                      fin: '2026-11-24T09:30:00+01:00'
+                      type: PRESENTIEL
+                      statut: CONFIRME
+                      motif: Contrôle trimestriel
+                      dateCreation: '2026-11-20T14:02:11+01:00'
+        '400':
+          $ref: '#/components/responses/RequeteInvalide'
+    post:
+      tags: [Rendez-vous]
+      operationId: creerRendezVous
+      summary: Prendre un rendez-vous
+      description: |
+        Deux modes :
+        - **standard** : `creneauId` obligatoire, le créneau doit être libre ;
+        - **urgence** (`type = URGENCE`, utilisé par l'orchestrateur sur alerte ÉLEVÉE) :
+          `creneauId` facultatif, le service attribue le premier créneau libre dans les 2 h
+          et renvoie 409 s'il n'en existe aucun.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RendezVousCreation'
+            examples:
+              standard:
+                summary: Rendez-vous sur un créneau choisi
+                value:
+                  identifiantPatient: PAT-0001
+                  medecinId: MED-001
+                  creneauId: CRN-20261124-001-0900
+                  type: PRESENTIEL
+                  motif: Contrôle trimestriel
+              urgence:
+                summary: RDV d'urgence déclenché par l'orchestrateur (alerte ÉLEVÉE)
+                value:
+                  identifiantPatient: PAT-0002
+                  medecinId: MED-002
+                  type: URGENCE
+                  motif: 'Alerte ÉLEVÉE : tension systolique 172 mmHg'
+                  referenceAlerte: ALR-2026-000317
+      responses:
+        '201':
+          description: Rendez-vous créé
+          headers:
+            Location:
+              description: URL du rendez-vous créé
+              schema:
+                type: string
+              example: /rendez-vous/RDV-2026-000042
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RendezVous'
+              examples:
+                urgence:
+                  $ref: '#/components/examples/RendezVousUrgence'
+        '400':
+          $ref: '#/components/responses/RequeteInvalide'
+        '404':
+          $ref: '#/components/responses/RessourceIntrouvable'
+        '409':
+          $ref: '#/components/responses/ConflitCreneau'
+
+  /rendez-vous/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdentifiantRendezVousPath'
+    get:
+      tags: [Rendez-vous]
+      operationId: consulterRendezVous
+      summary: Consulter un rendez-vous
+      responses:
+        '200':
+          description: Rendez-vous trouvé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RendezVous'
+              examples:
+                urgence:
+                  $ref: '#/components/examples/RendezVousUrgence'
+        '400':
+          $ref: '#/components/responses/RequeteInvalide'
+        '404':
+          $ref: '#/components/responses/RendezVousIntrouvable'
+    put:
+      tags: [Rendez-vous]
+      operationId: modifierRendezVous
+      summary: Déplacer ou modifier un rendez-vous
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RendezVousMiseAJour'
+            example:
+              creneauId: CRN-20261124-001-0930
+              type: TELECONSULTATION
+              motif: Contrôle trimestriel (à distance)
+      responses:
+        '200':
+          description: Rendez-vous modifié
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RendezVous'
+        '400':
+          $ref: '#/components/responses/RequeteInvalide'
+        '404':
+          $ref: '#/components/responses/RendezVousIntrouvable'
+        '409':
+          $ref: '#/components/responses/ConflitCreneau'
+    delete:
+      tags: [Rendez-vous]
+      operationId: annulerRendezVous
+      summary: Annuler un rendez-vous
+      description: |
+        Annulation logique : le rendez-vous passe au statut `ANNULE` et le créneau est libéré.
+      responses:
+        '204':
+          description: Rendez-vous annulé
+        '400':
+          $ref: '#/components/responses/RequeteInvalide'
+        '404':
+          $ref: '#/components/responses/RendezVousIntrouvable'
+        '409':
+          description: Rendez-vous déjà terminé ou déjà annulé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erreur'
+              example:
+                horodatage: '2026-11-22T10:15:00+01:00'
+                statut: 409
+                code: RDV_NON_ANNULABLE
+                message: Le rendez-vous RDV-2026-000042 est déjà au statut TERMINE
+                chemin: /rendez-vous/RDV-2026-000042
+
+  # ===================== URGENCES =====================
+  /urgences/ambulances:
+    post:
+      tags: [Urgences]
+      operationId: demanderAmbulance
+      summary: Demander une ambulance
+      description: |
+        Appelé par l'orchestrateur sur alerte CRITIQUE. L'ambulance est envoyée même si
+        le patient n'est pas couvert par la CNAM (la facturation est régularisée ensuite).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DemandeAmbulance'
+            example:
+              identifiantPatient: PAT-0001
+              referenceAlerte: ALR-2026-000318
+              motif: 'Alerte CRITIQUE : fréquence cardiaque 142 bpm'
+              adresse: 12 rue de Marseille, 1000 Tunis
+              position:
+                latitude: 36.8008
+                longitude: 10.1800
+      responses:
+        '201':
+          description: Mission d'ambulance créée
+          headers:
+            Location:
+              description: URL de la mission créée
+              schema:
+                type: string
+              example: /urgences/ambulances/AMB-2026-000007
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MissionAmbulance'
+              examples:
+                depechee:
+                  $ref: '#/components/examples/MissionAmbulance'
+        '400':
+          $ref: '#/components/responses/RequeteInvalide'
+        '404':
+          $ref: '#/components/responses/PatientIntrouvable'
+        '409':
+          description: Une mission est déjà en cours pour ce patient
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erreur'
+              example:
+                horodatage: '2026-11-22T10:15:00+01:00'
+                statut: 409
+                code: MISSION_DEJA_EN_COURS
+                message: La mission AMB-2026-000007 est déjà en cours pour PAT-0001
+                chemin: /urgences/ambulances
+
+  /urgences/ambulances/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Identifiant de la mission
+        schema:
+          type: string
+          pattern: '^AMB-\d{4}-\d{6}$'
+        example: AMB-2026-000007
+    get:
+      tags: [Urgences]
+      operationId: consulterMissionAmbulance
+      summary: Suivre une mission d'ambulance
+      responses:
+        '200':
+          description: État de la mission
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MissionAmbulance'
+              examples:
+                depechee:
+                  $ref: '#/components/examples/MissionAmbulance'
+        '400':
+          $ref: '#/components/responses/RequeteInvalide'
+        '404':
+          description: Mission introuvable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erreur'
+              example:
+                horodatage: '2026-11-22T10:15:00+01:00'
+                statut: 404
+                code: MISSION_INTROUVABLE
+                message: Aucune mission AMB-2026-999999
+                chemin: /urgences/ambulances/AMB-2026-999999
+
+components:
+  # ===================== PARAMÈTRES =====================
+  parameters:
+    IdentifiantPatientPath:
+      name: id
+      in: path
+      required: true
+      description: Identifiant patient commun à tous les services
+      schema:
+        $ref: '#/components/schemas/IdentifiantPatient'
+      example: PAT-0001
+    IdentifiantRendezVousPath:
+      name: id
+      in: path
+      required: true
+      description: Identifiant du rendez-vous
+      schema:
+        type: string
+        pattern: '^RDV-\d{4}-\d{6}$'
+      example: RDV-2026-000042
+
+  # ===================== SCHÉMAS =====================
+  schemas:
+    IdentifiantPatient:
+      type: string
+      pattern: '^PAT-\d{4}$'
+      example: PAT-0001
+    IdentifiantMedecin:
+      type: string
+      pattern: '^MED-\d{3}$'
+      example: MED-001
+    MontantDT:
+      type: number
+      format: double
+      minimum: 0
+      description: Montant en dinars tunisiens, 3 décimales (millimes)
+      example: 45.000
+    Filiere:
+      type: string
+      enum: [PUBLIQUE, PRIVEE, REMBOURSEMENT]
+      description: Filière CNAM (identique au contrat SOAP)
+    TypeConsultation:
+      type: string
+      enum: [PRESENTIEL, TELECONSULTATION, DOMICILE, URGENCE]
+    StatutRendezVous:
+      type: string
+      enum: [CONFIRME, ANNULE, TERMINE, ABSENT]
+    StatutMission:
+      type: string
+      enum: [DEMANDEE, DEPECHEE, SUR_PLACE, TRANSPORT, TERMINEE, ANNULEE]
+
+    ContactUrgence:
+      type: object
+      required: [nom, telephone]
+      properties:
+        nom:
+          type: string
+        lien:
+          type: string
+          example: Épouse
+        telephone:
+          type: string
+          example: '+216 22 333 444'
+
+    Patient:
+      type: object
+      required: [id, nom, prenom, dateNaissance]
+      properties:
+        id:
+          $ref: '#/components/schemas/IdentifiantPatient'
+        nom:
+          type: string
+        prenom:
+          type: string
+        dateNaissance:
+          type: string
+          format: date
+        sexe:
+          type: string
+          enum: [M, F]
+        telephone:
+          type: string
+        email:
+          type: string
+          format: email
+        adresse:
+          type: string
+        pathologie:
+          type: string
+          description: Pathologie principale suivie
+        medecinTraitantId:
+          $ref: '#/components/schemas/IdentifiantMedecin'
+        contactUrgence:
+          $ref: '#/components/schemas/ContactUrgence'
+
+    PatientMiseAJour:
+      type: object
+      minProperties: 1
+      properties:
+        telephone:
+          type: string
+          pattern: '^\+?[0-9 ]{8,20}$'
+        email:
+          type: string
+          format: email
+        adresse:
+          type: string
+          maxLength: 255
+        contactUrgence:
+          $ref: '#/components/schemas/ContactUrgence'
+
+    Medecin:
+      type: object
+      required: [id, nom, prenom, specialite]
+      properties:
+        id:
+          $ref: '#/components/schemas/IdentifiantMedecin'
+        nom:
+          type: string
+        prenom:
+          type: string
+        specialite:
+          type: string
+        etablissement:
+          type: string
+        ville:
+          type: string
+        filiere:
+          $ref: '#/components/schemas/Filiere'
+        teleconsultation:
+          type: boolean
+          description: Le médecin accepte les téléconsultations
+        tarifConsultation:
+          $ref: '#/components/schemas/MontantDT'
+
+    Creneau:
+      type: object
+      required: [id, medecinId, debut, fin, type, disponible]
+      properties:
+        id:
+          type: string
+          example: CRN-20261124-001-0900
+        medecinId:
+          $ref: '#/components/schemas/IdentifiantMedecin'
+        debut:
+          type: string
+          format: date-time
+        fin:
+          type: string
+          format: date-time
+        type:
+          $ref: '#/components/schemas/TypeConsultation'
+        disponible:
+          type: boolean
+
+    RendezVous:
+      type: object
+      required: [id, identifiantPatient, medecinId, debut, fin, type, statut]
+      properties:
+        id:
+          type: string
+          pattern: '^RDV-\d{4}-\d{6}$'
+        identifiantPatient:
+          $ref: '#/components/schemas/IdentifiantPatient'
+        medecinId:
+          $ref: '#/components/schemas/IdentifiantMedecin'
+        creneauId:
+          type: string
+        debut:
+          type: string
+          format: date-time
+        fin:
+          type: string
+          format: date-time
+        type:
+          $ref: '#/components/schemas/TypeConsultation'
+        statut:
+          $ref: '#/components/schemas/StatutRendezVous'
+        motif:
+          type: string
+        referenceAlerte:
+          type: string
+          description: Alerte de télémétrie à l'origine du RDV (RDV d'urgence uniquement)
+        dateCreation:
+          type: string
+          format: date-time
+
+    RendezVousCreation:
+      type: object
+      required: [identifiantPatient, medecinId, type]
+      properties:
+        identifiantPatient:
+          $ref: '#/components/schemas/IdentifiantPatient'
+        medecinId:
+          $ref: '#/components/schemas/IdentifiantMedecin'
+        creneauId:
+          type: string
+          description: Obligatoire sauf si `type = URGENCE`
+        type:
+          $ref: '#/components/schemas/TypeConsultation'
+        motif:
+          type: string
+          maxLength: 500
+        referenceAlerte:
+          type: string
+          example: ALR-2026-000317
+
+    RendezVousMiseAJour:
+      type: object
+      minProperties: 1
+      properties:
+        creneauId:
+          type: string
+          description: Nouveau créneau (doit être libre)
+        type:
+          $ref: '#/components/schemas/TypeConsultation'
+        motif:
+          type: string
+          maxLength: 500
+        statut:
+          type: string
+          enum: [TERMINE, ABSENT]
+          description: Clôture par le médecin (l'annulation passe par DELETE)
+
+    LigneOrdonnance:
+      type: object
+      required: [medicament, posologie]
+      properties:
+        medicament:
+          type: string
+        posologie:
+          type: string
+        dureeJours:
+          type: integer
+          minimum: 1
+
+    Ordonnance:
+      type: object
+      required: [id, identifiantPatient, medecinId, dateEmission, lignes]
+      properties:
+        id:
+          type: string
+          pattern: '^ORD-\d{4}-\d{6}$'
+        identifiantPatient:
+          $ref: '#/components/schemas/IdentifiantPatient'
+        medecinId:
+          $ref: '#/components/schemas/IdentifiantMedecin'
+        medecinNom:
+          type: string
+        dateEmission:
+          type: string
+          format: date
+        dateFinValidite:
+          type: string
+          format: date
+        renouvelable:
+          type: boolean
+        lignes:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/LigneOrdonnance'
+        remarques:
+          type: string
+
+    Position:
+      type: object
+      required: [latitude, longitude]
+      properties:
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+
+    DemandeAmbulance:
+      type: object
+      required: [identifiantPatient, motif]
+      properties:
+        identifiantPatient:
+          $ref: '#/components/schemas/IdentifiantPatient'
+        referenceAlerte:
+          type: string
+          description: Alerte de télémétrie à l'origine de la demande
+        motif:
+          type: string
+          maxLength: 500
+        adresse:
+          type: string
+          description: Adresse d'intervention (par défaut celle du profil)
+        position:
+          $ref: '#/components/schemas/Position'
+
+    MissionAmbulance:
+      type: object
+      required: [id, identifiantPatient, statut, dateDemande]
+      properties:
+        id:
+          type: string
+          pattern: '^AMB-\d{4}-\d{6}$'
+        identifiantPatient:
+          $ref: '#/components/schemas/IdentifiantPatient'
+        referenceAlerte:
+          type: string
+        statut:
+          $ref: '#/components/schemas/StatutMission'
+        motif:
+          type: string
+        adresse:
+          type: string
+        position:
+          $ref: '#/components/schemas/Position'
+        vehicule:
+          type: string
+          description: Immatriculation de l'ambulance affectée
+          example: SAMU-TN-12
+        etablissementDestination:
+          type: string
+        delaiEstimeMinutes:
+          type: integer
+          minimum: 0
+        dateDemande:
+          type: string
+          format: date-time
+        dateMiseAJour:
+          type: string
+          format: date-time
+
+    Erreur:
+      type: object
+      required: [horodatage, statut, code, message]
+      properties:
+        horodatage:
+          type: string
+          format: date-time
+        statut:
+          type: integer
+          description: Code HTTP
+        code:
+          type: string
+          description: Code d'erreur métier stable
+        message:
+          type: string
+        chemin:
+          type: string
+        details:
+          type: array
+          description: Erreurs de validation champ par champ (400)
+          items:
+            type: object
+            required: [champ, message]
+            properties:
+              champ:
+                type: string
+              message:
+                type: string
+
+  # ===================== RÉPONSES D'ERREUR =====================
+  responses:
+    RequeteInvalide:
+      description: Requête invalide (paramètre manquant, format incorrect…)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erreur'
+          example:
+            horodatage: '2026-11-22T10:15:00+01:00'
+            statut: 400
+            code: REQUETE_INVALIDE
+            message: La requête contient des champs invalides
+            chemin: /rendez-vous
+            details:
+              - champ: identifiantPatient
+                message: doit respecter le format PAT-0000
+    PatientIntrouvable:
+      description: Patient introuvable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erreur'
+          example:
+            horodatage: '2026-11-22T10:15:00+01:00'
+            statut: 404
+            code: PATIENT_INTROUVABLE
+            message: Aucun patient PAT-0099
+            chemin: /patients/PAT-0099
+    MedecinIntrouvable:
+      description: Médecin introuvable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erreur'
+          example:
+            horodatage: '2026-11-22T10:15:00+01:00'
+            statut: 404
+            code: MEDECIN_INTROUVABLE
+            message: Aucun médecin MED-999
+            chemin: /creneaux
+    RendezVousIntrouvable:
+      description: Rendez-vous introuvable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erreur'
+          example:
+            horodatage: '2026-11-22T10:15:00+01:00'
+            statut: 404
+            code: RDV_INTROUVABLE
+            message: Aucun rendez-vous RDV-2026-999999
+            chemin: /rendez-vous/RDV-2026-999999
+    RessourceIntrouvable:
+      description: Patient, médecin ou créneau introuvable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erreur'
+          example:
+            horodatage: '2026-11-22T10:15:00+01:00'
+            statut: 404
+            code: CRENEAU_INTROUVABLE
+            message: Aucun créneau CRN-20261124-001-1900
+            chemin: /rendez-vous
+    ConflitCreneau:
+      description: Créneau déjà réservé, ou aucun créneau libre dans les 2 h (urgence)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erreur'
+          examples:
+            dejaReserve:
+              value:
+                horodatage: '2026-11-22T10:15:00+01:00'
+                statut: 409
+                code: CRENEAU_DEJA_RESERVE
+                message: Le créneau CRN-20261124-001-0900 n'est plus disponible
+                chemin: /rendez-vous
+            aucunCreneauUrgence:
+              value:
+                horodatage: '2026-11-22T10:15:00+01:00'
+                statut: 409
+                code: AUCUN_CRENEAU_URGENCE
+                message: Aucun créneau libre dans les 2 h pour MED-002
+                chemin: /rendez-vous
+
+  # ===================== EXEMPLES =====================
+  examples:
+    PatientAhmed:
+      value:
+        id: PAT-0001
+        nom: Ben Salah
+        prenom: Ahmed
+        dateNaissance: '1958-03-14'
+        sexe: M
+        telephone: '+216 98 123 456'
+        email: ahmed.bensalah@exemple.tn
+        adresse: 12 rue de Marseille, 1000 Tunis
+        pathologie: Insuffisance cardiaque
+        medecinTraitantId: MED-001
+        contactUrgence:
+          nom: Fatma Ben Salah
+          lien: Épouse
+          telephone: '+216 22 333 444'
+    RendezVousUrgence:
+      value:
+        id: RDV-2026-000043
+        identifiantPatient: PAT-0002
+        medecinId: MED-002
+        creneauId: CRN-20261122-002-1100
+        debut: '2026-11-22T11:00:00+01:00'
+        fin: '2026-11-22T11:30:00+01:00'
+        type: URGENCE
+        statut: CONFIRME
+        motif: 'Alerte ÉLEVÉE : tension systolique 172 mmHg'
+        referenceAlerte: ALR-2026-000317
+        dateCreation: '2026-11-22T09:47:03+01:00'
+    MissionAmbulance:
+      value:
+        id: AMB-2026-000007
+        identifiantPatient: PAT-0001
+        referenceAlerte: ALR-2026-000318
+        statut: DEPECHEE
+        motif: 'Alerte CRITIQUE : fréquence cardiaque 142 bpm'
+        adresse: 12 rue de Marseille, 1000 Tunis
+        position:
+          latitude: 36.8008
+          longitude: 10.1800
+        vehicule: SAMU-TN-12
+        etablissementDestination: Hôpital Charles Nicolle
+        delaiEstimeMinutes: 12
+        dateDemande: '2026-11-22T09:48:00+01:00'
+        dateMiseAJour: '2026-11-22T09:49:30+01:00'
