@@ -5,9 +5,9 @@
 //
 // Seuils (CLAUDE.md) :
 //   CRITIQUE : FC < 40 ou > 130 ; SpO2 < 90 ; systolique > 180 ou < 90 ;
-//              température > 39,5 ; chute.
+//              diastolique > 120 ; température > 39,5 ; chute.
 //   ELEVEE   : FC 110–130 ; SpO2 90–94 ; systolique 160–180 ;
-//              température 38,5–39,5.
+//              diastolique > 100 et ≤ 120 ; température 38,5–39,5.
 // =====================================================================
 syntax = "proto3";
 
@@ -38,7 +38,7 @@ enum TypeMesure {
   FREQUENCE_CARDIAQUE = 1;   // bpm
   SPO2 = 2;                  // %
   TENSION_SYSTOLIQUE = 3;    // mmHg
-  TENSION_DIASTOLIQUE = 4;   // mmHg
+  TENSION_DIASTOLIQUE = 4;   // mmHg (ELEVEE > 100, CRITIQUE > 120)
   TEMPERATURE = 5;           // °C
   CHUTE = 6;                 // 1 = chute détectée
 }
