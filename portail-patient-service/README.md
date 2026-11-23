@@ -11,14 +11,17 @@ Sa copie, `src/main/resources/openapi/portail-patient.yaml`, doit rester identiq
 
 À chaque build, `openapi-generator-maven-plugin` (générateur `spring`, `interfaceOnly=true`) produit
 dans `target/generated-sources/openapi` :
-- les **interfaces** `PatientsApi`, `OrdonnancesApi`, `MdecinsApi`, `CrneauxApi`, `RendezVousApi` et `UrgencesApi`,
+- les **interfaces** `PatientsApi`, `MedecinsApi`, `CreneauxApi`, `RendezVousApi` et `UrgencesApi`,
   avec les routes, les paramètres et les annotations de validation (`@Pattern`, `@NotNull`…) ;
 - les **DTO** du package `tn.sahticonnect.portail.api.model`, suffixés `Dto` pour ne pas les confondre
   avec les entités.
 
 Les contrôleurs de `web/` implémentent ces interfaces et `PortailMapper` convertit les DTO en entités et inversement.
-`MdecinsApi` et `CrneauxApi` viennent des tags « Médecins » et « Créneaux » : le générateur supprime
-les lettres accentuées. Le contrat n'a pas été modifié pour autant.
+
+`useTags=false` : les interfaces sont nommées d'après le premier segment du chemin (`/medecins` → `MedecinsApi`)
+et non d'après les tags. Le générateur retire les accents des tags (« Médecins » donnerait `MdecinsApi`), alors
+que le contrat garde ses tags accentués, qui servent à l'affichage dans Swagger UI. Les ordonnances
+(`/patients/{id}/ordonnances`) se retrouvent donc dans `PatientsApi`, ce qui est voulu : c'est une sous-ressource du patient.
 
 - Swagger UI : http://localhost:8082/swagger-ui.html (affiche le contrat lui-même)
 - Contrat publié : http://localhost:8082/openapi/portail-patient.yaml
