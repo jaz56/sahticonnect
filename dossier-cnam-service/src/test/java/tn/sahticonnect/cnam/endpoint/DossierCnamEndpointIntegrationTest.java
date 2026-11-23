@@ -205,6 +205,20 @@ class DossierCnamEndpointIntegrationTest {
                 .andExpect(xpath("//c:recommandation", PREFIXES).evaluatesTo("Équivalent"));
     }
 
+    @Test
+    void comparerGaranties_vignetteExpiree_calculConserveMaisSimulation() {
+        // PAT-0002 : vignette expirée le 30/06/2026, filière privée, sans APCI
+        client.sendRequest(withPayload(payload(comparaison("PAT-0002"))))
+                .andExpect(noFault())
+                .andExpect(xpath("//c:resultatA/c:tauxApplique", PREFIXES).evaluatesTo("80"))
+                .andExpect(xpath("//c:resultatA/c:partPatient", PREFIXES).evaluatesTo("10.200"))
+                .andExpect(xpath("//c:resultatB/c:tauxApplique", PREFIXES).evaluatesTo("50"))
+                .andExpect(xpath("//c:resultatB/c:partPatient", PREFIXES).evaluatesTo("25.500"))
+                .andExpect(xpath("//c:differencePartPatient", PREFIXES).evaluatesTo("15.300"))
+                .andExpect(xpath("//c:recommandation", PREFIXES)
+                        .evaluatesTo("Simulation (vignette expirée) : Hôpital public"));
+    }
+
     /** Hôpital public (PUBLIQUE) vs clinique privée (PRIVEE), mêmes actes : C 1 + B 20 = 51 DT. */
     private static String comparaison(String patient) {
         return """

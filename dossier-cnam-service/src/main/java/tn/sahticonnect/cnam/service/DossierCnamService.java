@@ -45,6 +45,9 @@ public class DossierCnamService {
     private static final LocalDate DEBUT_PAR_DEFAUT = LocalDate.of(1900, 1, 1);
     private static final LocalDate FIN_PAR_DEFAUT = LocalDate.of(9999, 12, 31);
 
+    /** Préfixe de la recommandation de comparerGaranties quand la vignette est expirée. */
+    public static final String PREFIXE_SIMULATION = "Simulation (vignette expirée) : ";
+
     private final AssureRepository assureRepository;
     private final FeuilleDeSoinsRepository feuilleRepository;
     private final EntreeHistoriqueRepository historiqueRepository;
@@ -129,6 +132,10 @@ public class DossierCnamService {
         BigDecimal difference = patientA.subtract(patientB).abs();
         int comparaison = patientA.compareTo(patientB);
         String recommandation = comparaison == 0 ? "Équivalent" : (comparaison < 0 ? a.libelle() : b.libelle());
+        // vignette expirée aujourd'hui : le calcul reste indicatif (aucune prise en charge réelle)
+        if (!tarification.evaluerCouverture(assure, LocalDate.now(horloge)).couvert()) {
+            recommandation = PREFIXE_SIMULATION + recommandation;
+        }
         return new ComparaisonGaranties(a, b, difference, recommandation);
     }
 

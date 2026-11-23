@@ -22,7 +22,7 @@ La séquence ne rend jamais deux fois la même valeur, même en cas d'appels sim
 remise à zéro chaque année. Une contrainte d'unicité (`uk_feuille_de_soins_numero`) protège en plus
 la colonne `numero`.
 | `consulterHistorique` | Historique du patient, filtre facultatif `dateDebut` / `dateFin`, du plus récent au plus ancien |
-| `comparerGaranties` | Compare deux prises en charge et recommande la moins chère pour le patient |
+| `comparerGaranties` | Compare deux prises en charge et recommande la moins chère pour le patient ; si la vignette est expirée aujourd'hui, le calcul est conservé mais la recommandation commence par « Simulation (vignette expirée) : » |
 
 Règles de tarification (`TarificationService`, BigDecimal, 3 décimales, arrondi HALF_UP) :
 - montant d'un acte = valeur de la lettre-clé × coefficient (C = 45, CS = 60, V = 55, K = 3, B = 0,3, Z = 2 DT) ;
