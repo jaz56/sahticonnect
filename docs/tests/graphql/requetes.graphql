@@ -1,0 +1,211 @@
+# =====================================================================
+# Requêtes d'exemple pour GraphiQL : http://localhost:8083/graphiql
+# Coller ce fichier dans l'éditeur, puis choisir l'opération à exécuter avec le bouton ▶.
+# Les variables (panneau « Variables ») sont indiquées en commentaire au-dessus des opérations.
+# =====================================================================
+
+# ---------------------------------------------------------------------
+# 1. Fiche patient complète en UNE requête : données locales, constantes (gRPC),
+#    couverture (SOAP), alertes et leurs interventions, traitements actifs.
+#    Si telemetrie-service ou dossier-cnam-service est arrêté : réponse partielle
+#    (champ null + erreur SERVICE_INDISPONIBLE dans « errors »).
+# Variables : { "id": "PAT-0001" }
+# ---------------------------------------------------------------------
+query FichePatient($id: ID! = "PAT-0001") {
+  patient(id: $id) {
+    id
+    prenom
+    nom
+    age
+    service
+    pathologie
+    niveauRisque
+    medecinReferent
+    couvert
+    tauxRemboursement
+    constantes(limite: 10) {
+      type
+      valeur
+      unite
+      horodatage
+      niveau
+    }
+    alertes {
+      id
+      niveau
+      statut
+      seuilFranchi
+      message
+      horodatage
+      intervention {
+        id
+        type
+        etat
+        statutFacturation
+      }
+    }
+    traitements(actifs: true) {
+      medicament
+      posologie
+      dateFin
+      prescripteur
+    }
+    interventions {
+      id
+      type
+      etat
+      referenceExterne
+      numeroFeuilleSoins
+      montantTotal
+      partCNAM
+      partPatient
+    }
+  }
+}
+
+# ---------------------------------------------------------------------
+# 2. Filtres (critères combinés par ET ; pathologie : « contient », sans casse)
+# ---------------------------------------------------------------------
+query PatientsCardiologie {
+  patients(filtre: { service: "Cardiologie" }) {
+    id
+    nom
+    pathologie
+    niveauRisque
+  }
+}
+
+query PatientsCritiques {
+  patients(filtre: { niveauRisque: CRITIQUE }) {
+    id
+    nom
+    service
+    alertes(statut: NOUVELLE) {
+      id
+      message
+    }
+  }
+}
+
+query PatientsDiabetiquesMedecineInterne {
+  patients(filtre: { service: "Médecine interne", pathologie: "diab" }) {
+    id
+    nom
+    pathologie
+  }
+}
+
+# ---------------------------------------------------------------------
+# 3. Historique de soins paginé (source : SOAP consulterHistorique)
+# Variables : { "patientId": "PAT-0004", "page": 0, "taille": 2 }
+# ---------------------------------------------------------------------
+query HistoriquePagine($patientId: ID! = "PAT-0004", $page: Int = 0, $taille: Int = 2) {
+  historiqueSoins(patientId: $patientId, page: $page, taille: $taille) {
+    page
+    taille
+    totalElements
+    totalPages
+    elements {
+      date
+      etablissement
+      diagnostic
+      actes {
+        lettreCle
+        coefficient
+        libelle
+      }
+      numeroFeuilleSoins
+    }
+  }
+}
+
+# ---------------------------------------------------------------------
+# 4. Mutations (utilisées par l'orchestrateur)
+# ---------------------------------------------------------------------
+
+# Idempotente : exécuter deux fois avec le même id ne crée pas de doublon.
+mutation EnregistrerAlerte {
+  enregistrerAlerte(input: {
+    id: "ALR-2026-800001"
+    patientId: "PAT-0004"
+    niveau: CRITIQUE
+    typeConstante: SPO2
+    valeur: 86
+    seuilFranchi: "SpO2 < 90"
+    message: "Alerte CRITIQUE : saturation en oxygène 86 % (SpO2 < 90)"
+    horodatage: "2026-11-24T10:00:00+01:00"
+  }) {
+    id
+    statut
+    niveau
+  }
+}
+
+# L'alerte liée passe au statut PRISE_EN_CHARGE ; publie sur nouvelleIntervention.
+mutation CreerIntervention {
+  creerIntervention(input: {
+    patientId: "PAT-0004"
+    type: AMBULANCE
+    alerteId: "ALR-2026-800001"
+    referenceExterne: "AMB-2026-000007"
+    description: "Ambulance SAMU-TN-01"
+  }) {
+    id
+    etat
+    statutFacturation
+    dateCreation
+    patient {
+      nom
+      niveauRisque
+    }
+    alerte {
+      id
+      statut
+    }
+  }
+}
+
+# Remplacer l'id par celui renvoyé par CreerIntervention.
+# Variables : { "id": "INT-2026-000003" }
+mutation MettreAJourIntervention($id: ID! = "INT-2026-000003") {
+  mettreAJourIntervention(id: $id, input: {
+    etat: FACTUREE
+    statutFacturation: FACTUREE
+    numeroFeuilleSoins: "FS-2026-000012"
+    montantTotal: 60
+    partCNAM: 30
+    partPatient: 30
+  }) {
+    id
+    etat
+    statutFacturation
+    montantTotal
+    dateMiseAJour
+  }
+}
+
+# ---------------------------------------------------------------------
+# 5. Subscriptions (WebSocket ws://localhost:8083/graphql, protocole graphql-transport-ws)
+#    Lancer la subscription, puis exécuter une mutation dans un autre onglet de GraphiQL.
+# ---------------------------------------------------------------------
+subscription NouvellesAlertesCritiques {
+  nouvelleAlerte(niveauMinimum: CRITIQUE) {
+    id
+    patientId
+    niveau
+    message
+    horodatage
+  }
+}
+
+subscription NouvellesInterventionsMedecineInterne {
+  nouvelleIntervention(service: "Médecine interne") {
+    id
+    type
+    etat
+    patient {
+      nom
+      service
+    }
+  }
+}
