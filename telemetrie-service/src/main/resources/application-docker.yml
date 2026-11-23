@@ -1,0 +1,13 @@
+# Profil "docker" : PostgreSQL, paramètres fournis par variables d'environnement
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://postgres-telemetrie:5432/telemetrie}
+    username: ${DB_USER:telemetrie}
+    password: ${DB_PASSWORD:telemetrie}
+    driver-class-name: org.postgresql.Driver
+  sql:
+    init:
+      mode: always   # exécute schema.sql (séquence des alertes) aussi sur PostgreSQL
+  jpa:
+    hibernate:
+      ddl-auto: update

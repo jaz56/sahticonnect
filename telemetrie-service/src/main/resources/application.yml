@@ -1,0 +1,28 @@
+# Profil par défaut : H2 en mémoire (service sans HTTP : pas de console H2)
+spring:
+  application:
+    name: telemetrie-service
+  main:
+    web-application-type: none
+  datasource:
+    url: jdbc:h2:mem:telemetrie;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+  grpc:
+    server:
+      port: 9090
+      reflection:
+        enabled: true   # grpcurl / Postman découvrent les services sans le .proto
+      health:
+        enabled: true   # grpc.health.v1.Health/Check
+
+telemetrie:
+  fuseau-horaire: Africa/Tunis
+  # Patients suivis : toute mesure pour un autre identifiant est rejetée
+  patients: PAT-0001, PAT-0002, PAT-0003, PAT-0004, PAT-0005
+  historique-par-type: 100        # mesures gardées en mémoire par patient et par type
+  anti-rebond: 60s                # une alerte max. par (patient, type, niveau) sur cette fenêtre
