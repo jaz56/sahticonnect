@@ -85,6 +85,24 @@ public class PatientService {
         return niveau;
     }
 
+    /**
+     * Recalcule le niveau de risque de tous les patients (tâche périodique) : sans nouvel événement,
+     * une alerte qui dépasse 24 h (ou 7 jours) doit quand même faire baisser le niveau.
+     *
+     * @return nombre de patients dont le niveau a changé
+     */
+    @Transactional
+    public int recalculerTous() {
+        int changements = 0;
+        for (PatientSuivi patient : patientRepository.findAll()) {
+            NiveauRisque avant = patient.getNiveauRisque();
+            if (recalculerRisque(patient.getId()) != avant) {
+                changements++;
+            }
+        }
+        return changements;
+    }
+
     static NiveauRisque calculer(List<Alerte> alertesDesSeptJours, OffsetDateTime maintenant) {
         OffsetDateTime il24h = maintenant.minus(Duration.ofHours(24));
         List<Alerte> actives24h = alertesDesSeptJours.stream()

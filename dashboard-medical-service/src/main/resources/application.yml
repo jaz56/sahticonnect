@@ -40,6 +40,10 @@ spring:
 sahti:
   fuseau-horaire: Africa/Tunis
   timeout: 3s                            # délai max. par appel distant
+  risque:
+    recalcul:
+      actif: true                        # recalcul périodique du niveau de risque (alertes de plus de 24 h)
+      intervalle-ms: 300000              # toutes les 5 min
   telemetrie:
     adresse: localhost:9090              # gRPC DernieresMesures
   cnam:
