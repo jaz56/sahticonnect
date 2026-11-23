@@ -17,6 +17,30 @@ info:
     Règles métier utilisées par l'orchestrateur :
     - alerte CRITIQUE → `POST /urgences/ambulances` ;
     - alerte ÉLEVÉE → `POST /rendez-vous` avec `type = URGENCE` dans les 2 h.
+
+    Codes d'erreur métier (champ `code` de l'objet `Erreur`, stables pour les clients) :
+
+    | HTTP | Code | Cas |
+    |---|---|---|
+    | 400 | `REQUETE_INVALIDE` | Requête non conforme au contrat (détail champ par champ dans `details`), JSON illisible, champ obligatoire manquant |
+    | 400 | `CRENEAU_INCOHERENT` | `POST /rendez-vous` : le créneau n'appartient pas au médecin indiqué |
+    | 400 | `TYPE_CRENEAU_INCOMPATIBLE` | `POST`/`PUT` rendez-vous : le type demandé ne correspond pas au type du créneau |
+    | 404 | `PATIENT_INTROUVABLE` | Patient inconnu |
+    | 404 | `MEDECIN_INTROUVABLE` | Médecin inconnu |
+    | 404 | `CRENEAU_INTROUVABLE` | Créneau inconnu |
+    | 404 | `RDV_INTROUVABLE` | Rendez-vous inconnu |
+    | 404 | `MISSION_INTROUVABLE` | Mission d'ambulance inconnue |
+    | 404 | `RESSOURCE_INTROUVABLE` | Adresse (route) inexistante |
+    | 405 | `METHODE_NON_SUPPORTEE` | Méthode HTTP non prévue sur cette adresse |
+    | 409 | `EMAIL_DEJA_UTILISE` | `PUT /patients/{id}` : email déjà associé à un autre patient |
+    | 409 | `CRENEAU_DEJA_RESERVE` | Créneau déjà pris, y compris lors de deux réservations simultanées (verrou optimiste) |
+    | 409 | `AUCUN_CRENEAU_URGENCE` | RDV d'urgence : aucun créneau URGENCE libre dans les 2 h |
+    | 409 | `RDV_NON_MODIFIABLE` | `PUT /rendez-vous/{id}` : le rendez-vous n'est plus CONFIRME |
+    | 409 | `RDV_NON_ANNULABLE` | `DELETE /rendez-vous/{id}` : rendez-vous déjà TERMINE ou ANNULE |
+    | 409 | `MISSION_DEJA_EN_COURS` | Une mission non terminée existe déjà pour ce patient |
+    | 409 | `AUCUN_VEHICULE_DISPONIBLE` | Les 5 ambulances (`SAMU-TN-01` à `05`) sont déjà en mission |
+    | 409 | `CONFLIT_CONCURRENT` | Ressource modifiée par une autre requête pendant le traitement : réessayer |
+    | 500 | `ERREUR_INTERNE` | Erreur inattendue du service |
 servers:
   - url: http://localhost:8082
     description: Accès direct au service (développement)
@@ -367,7 +391,7 @@ paths:
                 urgence:
                   $ref: '#/components/examples/RendezVousUrgence'
         '400':
-          $ref: '#/components/responses/RequeteInvalide'
+          $ref: '#/components/responses/RequeteInvalideCreationRendezVous'
         '404':
           $ref: '#/components/responses/RessourceIntrouvable'
         '409':
@@ -416,11 +440,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/RendezVous'
         '400':
-          $ref: '#/components/responses/RequeteInvalide'
+          $ref: '#/components/responses/RequeteInvalideModificationRendezVous'
         '404':
           $ref: '#/components/responses/RendezVousIntrouvable'
         '409':
-          $ref: '#/components/responses/ConflitCreneau'
+          $ref: '#/components/responses/ConflitModificationRendezVous'
     delete:
       tags: [Rendez-vous]
       operationId: annulerRendezVous
@@ -491,17 +515,26 @@ paths:
         '404':
           $ref: '#/components/responses/PatientIntrouvable'
         '409':
-          description: Une mission est déjà en cours pour ce patient
+          description: Une mission est déjà en cours pour ce patient, ou aucune ambulance n'est disponible
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Erreur'
-              example:
-                horodatage: '2026-11-22T10:15:00+01:00'
-                statut: 409
-                code: MISSION_DEJA_EN_COURS
-                message: La mission AMB-2026-000007 est déjà en cours pour PAT-0001
-                chemin: /urgences/ambulances
+              examples:
+                missionDejaEnCours:
+                  value:
+                    horodatage: '2026-11-22T10:15:00+01:00'
+                    statut: 409
+                    code: MISSION_DEJA_EN_COURS
+                    message: La mission AMB-2026-000007 est déjà en cours pour PAT-0001
+                    chemin: /urgences/ambulances
+                aucunVehiculeDisponible:
+                  value:
+                    horodatage: '2026-11-22T10:15:00+01:00'
+                    statut: 409
+                    code: AUCUN_VEHICULE_DISPONIBLE
+                    message: Les 5 ambulances sont déjà en mission
+                    chemin: /urgences/ambulances
 
   /urgences/ambulances/{id}:
     parameters:
@@ -926,6 +959,36 @@ components:
             details:
               - champ: identifiantPatient
                 message: doit respecter le format PAT-0000
+    RequeteInvalideCreationRendezVous:
+      description: Requête invalide, ou créneau incohérent avec le médecin ou le type demandé
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erreur'
+          examples:
+            champsInvalides:
+              $ref: '#/components/examples/ErreurChampsInvalides'
+            creneauIncoherent:
+              summary: Le créneau n'appartient pas au médecin indiqué
+              value:
+                horodatage: '2026-11-22T10:15:00+01:00'
+                statut: 400
+                code: CRENEAU_INCOHERENT
+                message: Le créneau CRN-20261124-001-0900 n'appartient pas au médecin MED-002
+                chemin: /rendez-vous
+            typeIncompatible:
+              $ref: '#/components/examples/ErreurTypeCreneauIncompatible'
+    RequeteInvalideModificationRendezVous:
+      description: Requête invalide, ou type incompatible avec le créneau
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erreur'
+          examples:
+            champsInvalides:
+              $ref: '#/components/examples/ErreurChampsInvalides'
+            typeIncompatible:
+              $ref: '#/components/examples/ErreurTypeCreneauIncompatible'
     PatientIntrouvable:
       description: Patient introuvable
       content:
@@ -995,9 +1058,49 @@ components:
                 code: AUCUN_CRENEAU_URGENCE
                 message: Aucun créneau libre dans les 2 h pour MED-002
                 chemin: /rendez-vous
+    ConflitModificationRendezVous:
+      description: Nouveau créneau déjà réservé, ou rendez-vous qui n'est plus modifiable (statut différent de CONFIRME)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erreur'
+          examples:
+            dejaReserve:
+              value:
+                horodatage: '2026-11-22T10:15:00+01:00'
+                statut: 409
+                code: CRENEAU_DEJA_RESERVE
+                message: Le créneau CRN-20261124-001-0930 n'est plus disponible
+                chemin: /rendez-vous/RDV-2026-000042
+            nonModifiable:
+              value:
+                horodatage: '2026-11-22T10:15:00+01:00'
+                statut: 409
+                code: RDV_NON_MODIFIABLE
+                message: Le rendez-vous RDV-2026-000042 est au statut ANNULE
+                chemin: /rendez-vous/RDV-2026-000042
 
   # ===================== EXEMPLES =====================
   examples:
+    ErreurChampsInvalides:
+      summary: Champs non conformes au contrat
+      value:
+        horodatage: '2026-11-22T10:15:00+01:00'
+        statut: 400
+        code: REQUETE_INVALIDE
+        message: La requête contient des champs invalides
+        chemin: /rendez-vous
+        details:
+          - champ: identifiantPatient
+            message: doit respecter le format PAT-0000
+    ErreurTypeCreneauIncompatible:
+      summary: Le type demandé ne correspond pas au type du créneau
+      value:
+        horodatage: '2026-11-22T10:15:00+01:00'
+        statut: 400
+        code: TYPE_CRENEAU_INCOMPATIBLE
+        message: Le créneau CRN-20261124-001-0900 est de type PRESENTIEL, pas TELECONSULTATION
+        chemin: /rendez-vous
     PatientAhmed:
       value:
         id: PAT-0001
