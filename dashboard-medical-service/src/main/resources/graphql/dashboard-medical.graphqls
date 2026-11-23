@@ -1,0 +1,284 @@
+# =====================================================================
+# SahtiConnect – Dashboard médical (dashboard-medical-service, port 8083)
+# Schéma GraphQL (schema-first, Spring for GraphQL).
+#
+# Conventions :
+#  - identifiant patient commun à tous les services : PAT-0001 … PAT-0005 ;
+#  - montants en DT avec 3 décimales (Float côté GraphQL) ;
+#  - Date / DateTime : ISO 8601 (graphql-java-extended-scalars).
+#
+# Source des données (indiquée en commentaire sur chaque champ) :
+#  - LOCAL (base du dashboard) : patients, alertes, interventions, traitements ;
+#  - gRPC DernieresMesures (telemetrie-service) : constantes ;
+#  - SOAP consulterHistorique (dossier-cnam-service) : historiqueSoins ;
+#  - SOAP consulterHistorique + verifierDroitsCNAM : couvert, tauxRemboursement.
+#
+# Réponses partielles : les champs qui viennent d'un autre service sont NULLABLES.
+# Si le service est en panne (ou ne répond pas en 3 s), le champ vaut null, une
+# erreur est ajoutée dans « errors » (extensions.code = SERVICE_INDISPONIBLE,
+# extensions.service = "telemetrie" ou "dossier-cnam") et le reste de la réponse
+# est renvoyé normalement. Ces champs ne sont appelés que si le client les demande.
+# =====================================================================
+
+scalar Date
+scalar DateTime
+
+# ===================== ÉNUMÉRATIONS =====================
+
+"Niveau de risque global du patient, calculé à partir des alertes récentes."
+enum NiveauRisque {
+  FAIBLE
+  MODERE
+  ELEVE
+  CRITIQUE
+}
+
+"Niveau d'une alerte (règles de seuils de CLAUDE.md)."
+enum NiveauAlerte {
+  ELEVEE
+  CRITIQUE
+}
+
+"Type de constante vitale (aligné sur TypeMesure du contrat gRPC)."
+enum TypeConstante {
+  FREQUENCE_CARDIAQUE
+  SPO2
+  TENSION_SYSTOLIQUE
+  TENSION_DIASTOLIQUE
+  TEMPERATURE
+  CHUTE
+}
+
+enum StatutAlerte {
+  NOUVELLE
+  PRISE_EN_CHARGE
+  RESOLUE
+}
+
+enum TypeIntervention {
+  AMBULANCE
+  RDV_URGENCE
+  TELECONSULTATION
+  VISITE_DOMICILE
+}
+
+"États du workflow de l'orchestrateur."
+enum EtatWorkflow {
+  ALERTE_RECUE
+  DROITS_VERIFIES
+  INTERVENTION_DECLENCHEE
+  FICHE_PUBLIEE
+  FACTUREE
+  ECHEC
+}
+
+enum StatutFacturation {
+  EN_ATTENTE
+  FACTUREE
+  A_REGULARISER
+}
+
+enum LettreCle {
+  C
+  CS
+  V
+  K
+  B
+  Z
+}
+
+# ===================== TYPES =====================
+
+"Vue consolidée d'un patient pour le médecin."
+type PatientSuivi {
+  "Source : LOCAL."
+  id: ID!
+  "Source : LOCAL."
+  nom: String!
+  "Source : LOCAL."
+  prenom: String!
+  "Source : LOCAL."
+  dateNaissance: Date
+  "Calculé depuis dateNaissance. Source : LOCAL."
+  age: Int
+  "Service hospitalier (Cardiologie, Pneumologie…). Source : LOCAL."
+  service: String!
+  "Source : LOCAL."
+  pathologie: String!
+  "Recalculé à chaque alerte enregistrée ou changement de statut d'alerte. Source : LOCAL."
+  niveauRisque: NiveauRisque!
+  "Source : LOCAL."
+  medecinReferent: String
+  "Droits CNAM ouverts aujourd'hui ? Source : SOAP consulterHistorique (vignette) puis verifierDroitsCNAM (dossier-cnam-service). Null si le service est indisponible."
+  couvert: Boolean
+  "Taux de remboursement en % (0 si non couvert). Source : SOAP consulterHistorique puis verifierDroitsCNAM (dossier-cnam-service). Null si le service est indisponible."
+  tauxRemboursement: Int
+  "Dernières constantes, la plus récente en premier (limite : 1 à 100). Source : gRPC DernieresMesures (telemetrie-service). Null si le service est indisponible."
+  constantes(type: TypeConstante, limite: Int = 20): [ConstanteVitale!]
+  "Source : LOCAL."
+  alertes(statut: StatutAlerte): [Alerte!]!
+  "Source : LOCAL."
+  traitements(actifs: Boolean = true): [Traitement!]!
+  "Source : LOCAL."
+  interventions: [Intervention!]!
+}
+
+"Mesure d'une constante vitale. Source : gRPC DernieresMesures (telemetrie-service) ; niveau calculé par le dashboard."
+type ConstanteVitale {
+  id: ID!
+  patientId: ID!
+  type: TypeConstante!
+  valeur: Float!
+  unite: String!
+  horodatage: DateTime!
+  "Niveau détecté pour cette mesure ; null si dans les normes."
+  niveau: NiveauAlerte
+}
+
+"Alerte enregistrée par l'orchestrateur (enregistrerAlerte). Source : LOCAL."
+type Alerte {
+  "Identifiant de l'alerte gRPC : ALR-…"
+  id: ID!
+  patientId: ID!
+  niveau: NiveauAlerte!
+  statut: StatutAlerte!
+  typeConstante: TypeConstante!
+  valeur: Float!
+  "Description du seuil franchi, ex. « FC > 130 »."
+  seuilFranchi: String!
+  message: String
+  horodatage: DateTime!
+  intervention: Intervention
+}
+
+"Source : LOCAL."
+type Traitement {
+  id: ID!
+  patientId: ID!
+  medicament: String!
+  posologie: String!
+  dateDebut: Date!
+  dateFin: Date
+  prescripteur: String
+  actif: Boolean!
+}
+
+"Source : LOCAL (créée et mise à jour par l'orchestrateur)."
+type Intervention {
+  id: ID!
+  patientId: ID!
+  patient: PatientSuivi!
+  type: TypeIntervention!
+  etat: EtatWorkflow!
+  statutFacturation: StatutFacturation!
+  "Alerte à l'origine de l'intervention (null si créée manuellement)."
+  alerte: Alerte
+  description: String
+  "Identifiant de la ressource REST créée : AMB-… ou RDV-…"
+  referenceExterne: String
+  "Numéro de feuille de soins SOAP : FS-…"
+  numeroFeuilleSoins: String
+  montantTotal: Float
+  partCNAM: Float
+  partPatient: Float
+  dateCreation: DateTime!
+  dateMiseAJour: DateTime
+}
+
+"Acte coté NGAP. Source : SOAP consulterHistorique (dossier-cnam-service)."
+type ActeCote {
+  lettreCle: LettreCle!
+  coefficient: Float!
+  libelle: String
+}
+
+"Entrée de l'historique de soins. Source : SOAP consulterHistorique (dossier-cnam-service)."
+type EntreeHistoriqueSoins {
+  date: Date!
+  etablissement: String!
+  diagnostic: String!
+  actes: [ActeCote!]!
+  numeroFeuilleSoins: String
+}
+
+"Page de l'historique de soins. Source : SOAP consulterHistorique (dossier-cnam-service), paginé par le dashboard."
+type PageHistoriqueSoins {
+  elements: [EntreeHistoriqueSoins!]!
+  page: Int!
+  taille: Int!
+  totalElements: Int!
+  totalPages: Int!
+}
+
+# ===================== ENTRÉES =====================
+
+"Tous les critères sont facultatifs et combinés par ET."
+input FiltrePatients {
+  service: String
+  pathologie: String
+  niveauRisque: NiveauRisque
+}
+
+input CreerInterventionInput {
+  patientId: ID!
+  type: TypeIntervention!
+  alerteId: ID
+  description: String
+  "Identifiant de la ressource REST créée : AMB-… ou RDV-…"
+  referenceExterne: String
+  "Défaut : ALERTE_RECUE."
+  etat: EtatWorkflow
+  "Défaut : EN_ATTENTE."
+  statutFacturation: StatutFacturation
+}
+
+"Tous les champs sont facultatifs : seuls les champs fournis sont modifiés."
+input MettreAJourInterventionInput {
+  etat: EtatWorkflow
+  statutFacturation: StatutFacturation
+  referenceExterne: String
+  numeroFeuilleSoins: String
+  montantTotal: Float
+  partCNAM: Float
+  partPatient: Float
+  description: String
+}
+
+"Alerte reçue du flux gRPC SouscrireAlertes, enregistrée par l'orchestrateur."
+input EnregistrerAlerteInput {
+  "Identifiant de l'alerte gRPC : ALR-…"
+  id: ID!
+  patientId: ID!
+  niveau: NiveauAlerte!
+  typeConstante: TypeConstante!
+  valeur: Float!
+  seuilFranchi: String!
+  message: String
+  horodatage: DateTime!
+}
+
+# ===================== OPÉRATIONS =====================
+
+type Query {
+  "Patient par identifiant ; null s'il n'existe pas. Source : LOCAL (+ SOAP/gRPC pour certains champs)."
+  patient(id: ID!): PatientSuivi
+  "Source : LOCAL."
+  patients(filtre: FiltrePatients): [PatientSuivi!]!
+  "Historique paginé, du plus récent au plus ancien ; page commence à 0, taille de 1 à 100. Source : SOAP consulterHistorique (dossier-cnam-service). Null si le service est indisponible."
+  historiqueSoins(patientId: ID!, page: Int = 0, taille: Int = 10): PageHistoriqueSoins
+}
+
+type Mutation {
+  creerIntervention(input: CreerInterventionInput!): Intervention!
+  "Mise à jour au fil du workflow (droits vérifiés, fiche publiée, facturation…)."
+  mettreAJourIntervention(id: ID!, input: MettreAJourInterventionInput!): Intervention!
+  "Idempotent sur id : une alerte déjà enregistrée est renvoyée telle quelle."
+  enregistrerAlerte(input: EnregistrerAlerteInput!): Alerte!
+}
+
+type Subscription {
+  "Nouvelle intervention ; filtres facultatifs par patient ou par service."
+  nouvelleIntervention(patientId: ID, service: String): Intervention!
+  "Nouvelle alerte ; niveauMinimum par défaut ELEVEE (donc toutes les alertes)."
+  nouvelleAlerte(patientId: ID, niveauMinimum: NiveauAlerte): Alerte!
+}

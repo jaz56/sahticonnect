@@ -1,0 +1,22 @@
+# Profil "docker" : PostgreSQL et adresses des autres services par variables d'environnement
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://postgres-dashboard:5432/dashboard}
+    username: ${DB_USER:dashboard}
+    password: ${DB_PASSWORD:dashboard}
+    driver-class-name: org.postgresql.Driver
+  sql:
+    init:
+      mode: always   # exécute schema.sql (séquence des interventions) aussi sur PostgreSQL
+  h2:
+    console:
+      enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+sahti:
+  telemetrie:
+    adresse: ${TELEMETRIE_ADRESSE:telemetrie-service:9090}
+  cnam:
+    url: ${CNAM_URL:http://dossier-cnam-service:8081/ws}

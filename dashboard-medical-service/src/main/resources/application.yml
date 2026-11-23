@@ -1,0 +1,43 @@
+# Profil par défaut : H2 en mémoire + console H2 (http://localhost:8083/h2-console)
+server:
+  port: 8083
+
+spring:
+  application:
+    name: dashboard-medical-service
+  datasource:
+    url: jdbc:h2:mem:dashboard;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+  graphql:
+    graphiql:
+      enabled: true
+      path: /graphiql
+    # subscriptions : WebSocket sur le même chemin, protocole graphql-transport-ws
+    websocket:
+      path: /graphql
+    schema:
+      printer:
+        enabled: true   # GET /graphql/schema affiche le schéma
+  grpc:
+    client:
+      channels:
+        telemetrie:
+          address: ${sahti.telemetrie.adresse}   # canal nommé utilisé par TelemetrieClient (plaintext par défaut)
+
+# Services appelés par le dashboard
+sahti:
+  fuseau-horaire: Africa/Tunis
+  timeout: 3s                            # délai max. par appel distant
+  telemetrie:
+    adresse: localhost:9090              # gRPC DernieresMesures
+  cnam:
+    url: http://localhost:8081/ws        # SOAP consulterHistorique / verifierDroitsCNAM
