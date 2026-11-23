@@ -1,0 +1,16 @@
+# Profil "docker" : PostgreSQL, paramètres fournis par variables d'environnement
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://postgres-portail:5432/portail}
+    username: ${DB_USER:portail}
+    password: ${DB_PASSWORD:portail}
+    driver-class-name: org.postgresql.Driver
+  sql:
+    init:
+      mode: always   # exécute schema.sql (séquences de numérotation) aussi sur PostgreSQL
+  h2:
+    console:
+      enabled: false
+  jpa:
+    hibernate:
+      ddl-auto: update

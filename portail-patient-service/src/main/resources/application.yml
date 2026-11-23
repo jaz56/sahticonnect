@@ -1,0 +1,41 @@
+# Profil par défaut : H2 en mémoire + console H2 (http://localhost:8082/h2-console)
+server:
+  port: 8082
+
+spring:
+  application:
+    name: portail-patient-service
+  datasource:
+    url: jdbc:h2:mem:portail;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc.batch_size: 50
+        order_inserts: true
+  web:
+    locale: fr_FR          # messages de validation en français
+    locale-resolver: fixed
+  jackson:
+    default-property-inclusion: non_null
+
+# Swagger UI affiche le contrat (contract-first) et non une documentation déduite du code
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    url: /openapi/portail-patient.yaml
+
+portail:
+  fuseau-horaire: Africa/Tunis
+  ambulances:
+    simulation:
+      active: true          # fait avancer les missions DEPECHEE → SUR_PLACE → TRANSPORT → TERMINEE
+      intervalle-ms: 30000
