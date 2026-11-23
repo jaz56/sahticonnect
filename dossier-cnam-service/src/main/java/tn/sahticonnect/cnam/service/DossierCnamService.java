@@ -14,6 +14,7 @@ import tn.sahticonnect.cnam.exception.VignetteInvalideException;
 import tn.sahticonnect.cnam.repository.AssureRepository;
 import tn.sahticonnect.cnam.repository.EntreeHistoriqueRepository;
 import tn.sahticonnect.cnam.repository.FeuilleDeSoinsRepository;
+import tn.sahticonnect.cnam.repository.NumerotationRepository;
 import tn.sahticonnect.cnam.service.model.ComparaisonGaranties;
 import tn.sahticonnect.cnam.service.model.ConsultationHistorique;
 import tn.sahticonnect.cnam.service.model.DemandeFeuilleDeSoins;
@@ -47,6 +48,7 @@ public class DossierCnamService {
     private final AssureRepository assureRepository;
     private final FeuilleDeSoinsRepository feuilleRepository;
     private final EntreeHistoriqueRepository historiqueRepository;
+    private final NumerotationRepository numerotation;
     private final TarificationService tarification;
     private final Clock horloge;
 
@@ -89,7 +91,8 @@ public class DossierCnamService {
         feuille.setPartCNAM(montants.partCNAM());
         feuille.setPartPatient(montants.partPatient());
         feuille.setStatut(couverture.couvert() ? StatutFeuille.CERTIFIEE : StatutFeuille.EMISE);
-        feuille.setNumero(prochainNumero(demande.dateSoins()));
+        // numéro tiré de la séquence de base, avant l'enregistrement
+        feuille.setNumero(numero(demande.dateSoins(), numerotation.prochaineValeurFeuille()));
         feuille.setCodeCertification(codeCertification(feuille));
         feuilleRepository.save(feuille);
 
@@ -148,11 +151,9 @@ public class DossierCnamService {
         return new ResultatGarantie(offre.libelle(), taux, montants);
     }
 
-    /** Numéro FS-AAAA-NNNNNN, séquentiel par année de soins. */
-    private String prochainNumero(LocalDate dateSoins) {
-        String prefixe = "FS-" + dateSoins.getYear() + "-";
-        long rang = feuilleRepository.countByNumeroStartingWith(prefixe) + 1;
-        return prefixe + String.format("%06d", rang);
+    /** Numéro FS-AAAA-NNNNNN : année des soins + valeur de la séquence feuille_soins_seq. */
+    static String numero(LocalDate dateSoins, long valeurSequence) {
+        return "FS-%d-%06d".formatted(dateSoins.getYear(), valeurSequence);
     }
 
     /** Empreinte SHA-256 (hex) de numéro + patient + date + actes + montant (certification simulée). */

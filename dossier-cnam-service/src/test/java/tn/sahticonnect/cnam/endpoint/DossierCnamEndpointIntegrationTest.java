@@ -118,7 +118,9 @@ class DossierCnamEndpointIntegrationTest {
                 .andExpect(xpath("string-length(//c:feuilleDeSoins/c:codeCertification)", PREFIXES).evaluatesTo(64));
 
         // la feuille est enregistrée et figure dans l'historique du patient
-        assertThat(feuilleRepository.countByNumeroStartingWith("FS-2026-")).isPositive();
+        assertThat(feuilleRepository.findAll())
+                .anyMatch(f -> f.getAssure().getIdentifiantPatient().equals("PAT-0003")
+                        && f.getNumero().startsWith("FS-2026-"));
         client.sendRequest(withPayload(payload("""
                 <c:consulterHistoriqueRequest xmlns:c="{ns}">
                   <c:identifiantPatient>PAT-0003</c:identifiantPatient>

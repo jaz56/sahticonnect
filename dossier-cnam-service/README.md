@@ -15,6 +15,12 @@ Namespace : `http://sahticonnect.tn/cnam`. Adresse : `http://localhost:8081/ws`.
 |---|---|
 | `verifierDroitsCNAM` | Assuré, couverture (couvert, taux, motif) et montants estimés d'un acte |
 | `emettreFeuilleDeSoins` | Feuille `FS-AAAA-NNNNNN` : CERTIFIEE si le patient est couvert, sinon EMISE à taux 0 ; ajoutée à l'historique |
+
+Numérotation des feuilles : `AAAA` est l'année des soins et `NNNNNN` la valeur suivante de la séquence
+de base `feuille_soins_numero_seq`, créée par `schema.sql` (même syntaxe sous H2 et PostgreSQL).
+La séquence ne rend jamais deux fois la même valeur, même en cas d'appels simultanés. Elle n'est pas
+remise à zéro chaque année. Une contrainte d'unicité (`uk_feuille_de_soins_numero`) protège en plus
+la colonne `numero`.
 | `consulterHistorique` | Historique du patient, filtre facultatif `dateDebut` / `dateFin`, du plus récent au plus ancien |
 | `comparerGaranties` | Compare deux prises en charge et recommande la moins chère pour le patient |
 

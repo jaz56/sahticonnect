@@ -12,6 +12,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.OrderBy;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -21,8 +23,13 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Feuille de soins émise pour un assuré (numéro FS-AAAA-NNNNNN). */
+/**
+ * Feuille de soins émise pour un assuré (numéro FS-AAAA-NNNNNN).
+ * Le numéro est construit à partir de la séquence de base « feuille_soins_numero_seq »
+ * (voir NumerotationRepository) et protégé par une contrainte d'unicité.
+ */
 @Entity
+@Table(uniqueConstraints = @UniqueConstraint(name = "uk_feuille_de_soins_numero", columnNames = "numero"))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -32,7 +39,7 @@ public class FeuilleDeSoins {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 14)
+    @Column(nullable = false, length = 14)
     private String numero;
 
     @ManyToOne(optional = false)
