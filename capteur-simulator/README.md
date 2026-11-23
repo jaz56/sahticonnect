@@ -30,6 +30,10 @@ Les fichiers `telemetrie_pb2*.py` ne sont pas versionnés : ils se régénèrent
 python abonne_alertes.py
 python abonne_alertes.py --patients PAT-0001 PAT-0003 --niveau CRITIQUE
 
+# L'abonné ne quitte pas si le service est injoignable ou si le flux se coupe (redémarrage du service) :
+# « Nouvelle tentative… » toutes les 3 s (--delai), Ctrl+C pour quitter.
+# Il s'arrête seulement sur une erreur due à la requête elle-même (INVALID_ARGUMENT…).
+
 # Terminal 2 : un capteur
 python capteur.py --patient PAT-0001 --scenario tachycardie --intervalle 1 --duree 60 --hote localhost:9090
 ```
