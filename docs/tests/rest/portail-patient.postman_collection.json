@@ -1,0 +1,915 @@
+{
+  "info": {
+    "name": "SahtiConnect – Portail patient (REST)",
+    "description": "Scénario complet du service portail-patient-service : profil → créneaux → RDV → modification → annulation → RDV d'urgence → ambulance → erreurs du contrat.\nÀ exécuter dans l'ordre (Collection Runner) : les identifiants sont passés d'une requête à l'autre par des variables de collection.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8082"
+    },
+    {
+      "key": "date",
+      "value": ""
+    },
+    {
+      "key": "creneauId",
+      "value": ""
+    },
+    {
+      "key": "creneauTeleId",
+      "value": ""
+    },
+    {
+      "key": "rdvId",
+      "value": ""
+    },
+    {
+      "key": "missionId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Profil",
+      "item": [
+        {
+          "name": "Consulter PAT-0001",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"nom\", () => pm.expect(pm.response.json().nom).to.eql(\"Ben Salah\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/patients/PAT-0001",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients",
+                "PAT-0001"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Modifier les coordonnées",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/patients/PAT-0001",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients",
+                "PAT-0001"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"telephone\": \"+216 98 123 456\",\n  \"adresse\": \"12 rue de Marseille, 1000 Tunis\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Ordonnances actives",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"au moins une\", () => pm.expect(pm.response.json().length).to.be.above(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/patients/PAT-0001/ordonnances?actives=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients",
+                "PAT-0001",
+                "ordonnances"
+              ],
+              "query": [
+                {
+                  "key": "actives",
+                  "value": "true"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Médecins et créneaux",
+      "item": [
+        {
+          "name": "Médecins (cardiologie)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/medecins?specialite=Cardiologie",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "medecins"
+              ],
+              "query": [
+                {
+                  "key": "specialite",
+                  "value": "Cardiologie"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Créneaux PRESENTIEL libres de MED-001",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// prochain jour de consultation (hors dimanche) dans 2 jours au moins",
+                  "const d = new Date(); d.setDate(d.getDate() + 2); if (d.getDay() === 0) d.setDate(d.getDate() + 1);",
+                  "const jour = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');",
+                  "pm.collectionVariables.set(\"date\", jour);"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"creneauId\", pm.response.json()[0].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/creneaux?medecinId=MED-001&date={{date}}&type=PRESENTIEL",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creneaux"
+              ],
+              "query": [
+                {
+                  "key": "medecinId",
+                  "value": "MED-001"
+                },
+                {
+                  "key": "date",
+                  "value": "{{date}}"
+                },
+                {
+                  "key": "type",
+                  "value": "PRESENTIEL"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Créneaux TELECONSULTATION libres de MED-001",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"creneauTeleId\", pm.response.json()[0].id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/creneaux?medecinId=MED-001&date={{date}}&type=TELECONSULTATION",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "creneaux"
+              ],
+              "query": [
+                {
+                  "key": "medecinId",
+                  "value": "MED-001"
+                },
+                {
+                  "key": "date",
+                  "value": "{{date}}"
+                },
+                {
+                  "key": "type",
+                  "value": "TELECONSULTATION"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Rendez-vous",
+      "item": [
+        {
+          "name": "Prendre un RDV",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Location\", () => pm.response.to.have.header(\"Location\"));",
+                  "pm.collectionVariables.set(\"rdvId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/rendez-vous",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rendez-vous"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifiantPatient\": \"PAT-0001\",\n  \"medecinId\": \"MED-001\",\n  \"creneauId\": \"{{creneauId}}\",\n  \"type\": \"PRESENTIEL\",\n  \"motif\": \"Contrôle trimestriel\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Consulter le RDV",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rendez-vous/{{rdvId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rendez-vous",
+                "{{rdvId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Passer en téléconsultation",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/rendez-vous/{{rdvId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rendez-vous",
+                "{{rdvId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"creneauId\": \"{{creneauTeleId}}\",\n  \"type\": \"TELECONSULTATION\",\n  \"motif\": \"Contrôle trimestriel (à distance)\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Annuler le RDV",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rendez-vous/{{rdvId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rendez-vous",
+                "{{rdvId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "RDV de PAT-0001",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rendez-vous?patientId=PAT-0001",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rendez-vous"
+              ],
+              "query": [
+                {
+                  "key": "patientId",
+                  "value": "PAT-0001"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Urgences",
+      "item": [
+        {
+          "name": "RDV d'urgence (médecin traitant par défaut)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"médecin traitant\", () => pm.expect(pm.response.json().medecinId).to.eql(\"MED-002\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/rendez-vous",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rendez-vous"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifiantPatient\": \"PAT-0002\",\n  \"type\": \"URGENCE\",\n  \"motif\": \"Alerte ÉLEVÉE : tension systolique 172 mmHg\",\n  \"referenceAlerte\": \"ALR-2026-000317\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Demander une ambulance",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"DEPECHEE\", () => pm.expect(pm.response.json().statut).to.eql(\"DEPECHEE\"));",
+                  "pm.collectionVariables.set(\"missionId\", pm.response.json().id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/urgences/ambulances",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "urgences",
+                "ambulances"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifiantPatient\": \"PAT-0003\",\n  \"referenceAlerte\": \"ALR-2026-000318\",\n  \"motif\": \"Alerte CRITIQUE : SpO2 86 %\",\n  \"position\": {\n    \"latitude\": 36.8665,\n    \"longitude\": 10.1647\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "409 MISSION_DEJA_EN_COURS si la collection est relancée avant la fin de la mission précédente (environ 90 s)."
+          }
+        },
+        {
+          "name": "Suivre la mission",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/urgences/ambulances/{{missionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "urgences",
+                "ambulances",
+                "{{missionId}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Erreurs du contrat",
+      "item": [
+        {
+          "name": "404 patient inconnu",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"code PATIENT_INTROUVABLE\", () => pm.expect(pm.response.json().code).to.eql(\"PATIENT_INTROUVABLE\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/patients/PAT-0099",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients",
+                "PAT-0099"
+              ]
+            }
+          }
+        },
+        {
+          "name": "400 identifiant mal formé",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"code REQUETE_INVALIDE\", () => pm.expect(pm.response.json().code).to.eql(\"REQUETE_INVALIDE\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/patients/P1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients",
+                "P1"
+              ]
+            }
+          }
+        },
+        {
+          "name": "409 email déjà utilisé",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"code EMAIL_DEJA_UTILISE\", () => pm.expect(pm.response.json().code).to.eql(\"EMAIL_DEJA_UTILISE\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/patients/PAT-0001",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "patients",
+                "PAT-0001"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"leila.trabelsi@exemple.tn\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "409 RDV déjà annulé",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"code RDV_NON_ANNULABLE\", () => pm.expect(pm.response.json().code).to.eql(\"RDV_NON_ANNULABLE\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rendez-vous/{{rdvId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rendez-vous",
+                "{{rdvId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Réserver à nouveau le créneau",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/rendez-vous",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rendez-vous"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifiantPatient\": \"PAT-0001\",\n  \"medecinId\": \"MED-001\",\n  \"creneauId\": \"{{creneauId}}\",\n  \"type\": \"PRESENTIEL\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "409 créneau déjà réservé",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"code CRENEAU_DEJA_RESERVE\", () => pm.expect(pm.response.json().code).to.eql(\"CRENEAU_DEJA_RESERVE\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/rendez-vous",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rendez-vous"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifiantPatient\": \"PAT-0004\",\n  \"medecinId\": \"MED-001\",\n  \"creneauId\": \"{{creneauId}}\",\n  \"type\": \"PRESENTIEL\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "400 corps non conforme",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"code REQUETE_INVALIDE\", () => pm.expect(pm.response.json().code).to.eql(\"REQUETE_INVALIDE\"));",
+                  "pm.test(\"details\", () => pm.expect(pm.response.json().details[0].champ).to.eql(\"identifiantPatient\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/rendez-vous",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "rendez-vous"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifiantPatient\": \"X\",\n  \"type\": \"PRESENTIEL\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "409 mission déjà en cours",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"code MISSION_DEJA_EN_COURS\", () => pm.expect(pm.response.json().code).to.eql(\"MISSION_DEJA_EN_COURS\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/urgences/ambulances",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "urgences",
+                "ambulances"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"identifiantPatient\": \"PAT-0003\",\n  \"motif\": \"Nouvelle alerte\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "404 mission inconnue",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"code MISSION_INTROUVABLE\", () => pm.expect(pm.response.json().code).to.eql(\"MISSION_INTROUVABLE\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/urgences/ambulances/AMB-2026-999999",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "urgences",
+                "ambulances",
+                "AMB-2026-999999"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

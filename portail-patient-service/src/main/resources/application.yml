@@ -1,6 +1,9 @@
 # Profil par défaut : H2 en mémoire + console H2 (http://localhost:8082/h2-console)
 server:
   port: 8082
+  servlet:
+    encoding:
+      force-response: true   # Content-Type: application/json;charset=UTF-8 (accents corrects sous PowerShell 5.1)
 
 spring:
   application:
