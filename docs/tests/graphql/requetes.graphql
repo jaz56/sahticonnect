@@ -184,6 +184,24 @@ mutation MettreAJourIntervention($id: ID! = "INT-2026-000003") {
   }
 }
 
+# Alerte traitée : RESOLUE, puis niveau de risque du patient recalculé (NOT_FOUND si l'id est inconnu).
+mutation ResoudreAlerte {
+  resoudreAlerte(id: "ALR-2026-900004", commentaire: "Patient relevé, pas de fracture") {
+    id
+    statut
+  }
+}
+
+query RisqueApresResolution {
+  patient(id: "PAT-0005") {
+    niveauRisque
+    alertes {
+      id
+      statut
+    }
+  }
+}
+
 # ---------------------------------------------------------------------
 # 5. Subscriptions (WebSocket ws://localhost:8083/graphql, protocole graphql-transport-ws)
 #    Lancer la subscription, puis exécuter une mutation dans un autre onglet de GraphiQL.

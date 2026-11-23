@@ -51,4 +51,11 @@ public class Alerte extends EntiteAIdentifiantMetier {
 
     @Column(nullable = false)
     private OffsetDateTime horodatage;
+
+    /** Renseignés par resoudreAlerte (non exposés dans le schéma GraphQL actuel). */
+    @Column(name = "commentaire_resolution", length = 500)
+    private String commentaireResolution;
+
+    @Column(name = "date_resolution")
+    private OffsetDateTime dateResolution;
 }

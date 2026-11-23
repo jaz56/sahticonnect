@@ -10,7 +10,9 @@ import tn.sahticonnect.dashboard.entity.StatutAlerte;
 import tn.sahticonnect.dashboard.entity.TypeConstante;
 import tn.sahticonnect.dashboard.repository.AlerteRepository;
 
+import java.time.Clock;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import java.util.regex.Pattern;
 
@@ -24,6 +26,7 @@ public class AlerteService {
 
     private final AlerteRepository alerteRepository;
     private final PatientService patientService;
+    private final Clock horloge;
 
     /** Données de la mutation enregistrerAlerte. */
     public record NouvelleAlerte(String id, String patientId, NiveauAlerte niveau, TypeConstante typeConstante,
@@ -73,6 +76,21 @@ public class AlerteService {
         alerteRepository.save(alerte);
         patientService.recalculerRisque(alerte.getPatientId());
         return alerte;
+    }
+
+    /**
+     * Mutation resoudreAlerte : statut RESOLUE, commentaire et date de résolution, puis recalcul du niveau
+     * de risque du patient. Une alerte déjà résolue est renvoyée telle quelle (l'appel peut être rejoué).
+     */
+    @Transactional
+    public Alerte resoudre(String id, String commentaire) {
+        Alerte alerte = exiger(id);
+        if (alerte.getStatut() == StatutAlerte.RESOLUE) {
+            return alerte;
+        }
+        alerte.setCommentaireResolution(commentaire);
+        alerte.setDateResolution(OffsetDateTime.now(horloge).truncatedTo(ChronoUnit.SECONDS));
+        return changerStatut(alerte, StatutAlerte.RESOLUE);
     }
 
     public Alerte exiger(String id) {

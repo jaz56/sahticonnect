@@ -274,6 +274,8 @@ type Mutation {
   mettreAJourIntervention(id: ID!, input: MettreAJourInterventionInput!): Intervention!
   "Idempotent sur id : une alerte déjà enregistrée est renvoyée telle quelle."
   enregistrerAlerte(input: EnregistrerAlerteInput!): Alerte!
+  "Passe l'alerte au statut RESOLUE et recalcule le niveau de risque du patient ; NOT_FOUND si l'id est inconnu. Une alerte déjà résolue est renvoyée telle quelle."
+  resoudreAlerte(id: ID!, commentaire: String): Alerte!
 }
 
 type Subscription {

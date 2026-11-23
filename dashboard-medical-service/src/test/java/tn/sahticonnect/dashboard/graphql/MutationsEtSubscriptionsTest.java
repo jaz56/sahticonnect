@@ -109,6 +109,45 @@ class MutationsEtSubscriptionsTest {
                 .errors().satisfy(e -> assertThat(e).singleElement().satisfies(x -> assertThat(aLeCode(x, "BAD_REQUEST")).isTrue()));
     }
 
+    // ===================== resoudreAlerte =====================
+
+    @Test
+    void resoudreAlerte_statutResolueEtNiveauDeRisqueRecalcule() {
+        // toutes les alertes de PAT-0002 non résolues (démo + éventuellement d'autres tests) sont résolues
+        java.util.List<String> aResoudre = graphQl.document("{ patient(id: \"PAT-0002\") { alertes { id statut } } }")
+                .execute().path("patient.alertes[?(@.statut != 'RESOLUE')].id").entityList(String.class).get();
+        assertThat(aResoudre).contains("ALR-2026-900002");
+        assertThat(niveauRisque("PAT-0002")).isIn("ELEVE", "CRITIQUE");
+
+        for (String id : aResoudre) {
+            graphQl.document("mutation($id: ID!) { resoudreAlerte(id: $id, commentaire: \"Tension contrôlée\") { id statut } }")
+                    .variable("id", id)
+                    .execute()
+                    .path("resoudreAlerte.statut").entity(String.class).isEqualTo("RESOLUE");
+        }
+
+        // plus d'alerte non résolue dans les 24 h, mais une alerte dans les 7 jours
+        assertThat(niveauRisque("PAT-0002")).isEqualTo("MODERE");
+        assertThat(alerteRepository.findById("ALR-2026-900002")).get().satisfies(a -> {
+            assertThat(a.getCommentaireResolution()).isEqualTo("Tension contrôlée");
+            assertThat(a.getDateResolution()).isNotNull();
+        });
+        // rejouer la résolution : renvoyée telle quelle
+        graphQl.document("mutation { resoudreAlerte(id: \"ALR-2026-900002\") { statut } }")
+                .execute()
+                .path("resoudreAlerte.statut").entity(String.class).isEqualTo("RESOLUE");
+    }
+
+    @Test
+    void resoudreAlerte_idInconnu_notFound() {
+        graphQl.document("mutation { resoudreAlerte(id: \"ALR-2026-999999\") { id } }")
+                .execute()
+                .errors().satisfy(e -> assertThat(e).singleElement().satisfies(x -> {
+                    assertThat(aLeCode(x, "NOT_FOUND")).isTrue();
+                    assertThat(x.getMessage()).isEqualTo("Alerte inconnue : ALR-2026-999999");
+                }));
+    }
+
     // ===================== creerIntervention / mettreAJourIntervention =====================
 
     @Test

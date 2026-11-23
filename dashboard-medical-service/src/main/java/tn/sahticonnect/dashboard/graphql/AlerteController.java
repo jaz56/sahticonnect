@@ -19,7 +19,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Mutation enregistrerAlerte, subscription nouvelleAlerte et champ Alerte.intervention. */
+/** Mutations enregistrerAlerte et resoudreAlerte, subscription nouvelleAlerte et champ Alerte.intervention. */
 @Controller
 @RequiredArgsConstructor
 public class AlerteController {
@@ -45,6 +45,12 @@ public class AlerteController {
             publicateur.publier(resultat.alerte());
         }
         return resultat.alerte();
+    }
+
+    /** RESOLUE + recalcul du niveau de risque ; NOT_FOUND si l'alerte est inconnue. */
+    @MutationMapping
+    public Alerte resoudreAlerte(@Argument String id, @Argument String commentaire) {
+        return alerteService.resoudre(id, commentaire);
     }
 
     /** Filtres facultatifs ; niveauMinimum par défaut ELEVEE, donc toutes les alertes. */
