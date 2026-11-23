@@ -422,6 +422,25 @@ class PortailPatientApiIntegrationTest {
         }
 
         @Test
+        void modifierVersUnCreneauDUnAutreMedecin_400() throws Exception {
+            Creneau chezChaabane = creneauLibre("MED-001", TypeConsultation.PRESENTIEL, 1);
+            Creneau chezHaddad = creneauLibre("MED-002", TypeConsultation.PRESENTIEL, 1);
+            String id = creerRendezVous("PAT-0001", chezChaabane);
+
+            ResultActions r = envoyer(put("/rendez-vous/" + id), """
+                    {"creneauId":"%s"}""".formatted(chezHaddad.getId()));
+            erreur(r, 400, "CRENEAU_INCOHERENT", "/rendez-vous/" + id);
+            r.andExpect(jsonPath("$.message", org.hamcrest.Matchers.containsString("annuler puis recréer")));
+
+            // rien n'a changé : le RDV garde son créneau, l'autre créneau reste libre
+            mvc.perform(get("/rendez-vous/" + id))
+                    .andExpect(jsonPath("$.creneauId").value(chezChaabane.getId()))
+                    .andExpect(jsonPath("$.medecinId").value("MED-001"));
+            assertThat(creneauRepository.findById(chezHaddad.getId()).orElseThrow().isDisponible()).isTrue();
+            assertThat(creneauRepository.findById(chezChaabane.getId()).orElseThrow().isDisponible()).isFalse();
+        }
+
+        @Test
         void modifierVersUnCreneauPris_409() throws Exception {
             Creneau premier = creneauLibre("MED-001", TypeConsultation.PRESENTIEL, 1);
             String id = creerRendezVous("PAT-0001", premier);

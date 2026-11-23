@@ -23,7 +23,7 @@ info:
     | HTTP | Code | Cas |
     |---|---|---|
     | 400 | `REQUETE_INVALIDE` | Requête non conforme au contrat (détail champ par champ dans `details`), JSON illisible, champ obligatoire manquant |
-    | 400 | `CRENEAU_INCOHERENT` | `POST /rendez-vous` : le créneau n'appartient pas au médecin indiqué |
+    | 400 | `CRENEAU_INCOHERENT` | `POST /rendez-vous` : le créneau n'appartient pas au médecin indiqué ; `PUT /rendez-vous/{id}` : le nouveau créneau n'appartient pas au médecin du rendez-vous (changer de médecin = annuler puis recréer) |
     | 400 | `TYPE_CRENEAU_INCOMPATIBLE` | `POST`/`PUT` rendez-vous : le type demandé ne correspond pas au type du créneau |
     | 404 | `PATIENT_INTROUVABLE` | Patient inconnu |
     | 404 | `MEDECIN_INTROUVABLE` | Médecin inconnu |
@@ -422,6 +422,10 @@ paths:
       tags: [Rendez-vous]
       operationId: modifierRendezVous
       summary: Déplacer ou modifier un rendez-vous
+      description: |
+        Le nouveau créneau doit appartenir au même médecin (sinon 400 `CRENEAU_INCOHERENT`) :
+        déplacer un rendez-vous chez un autre médecin, c'est l'annuler puis en créer un nouveau.
+        Changer de créneau réserve le nouveau puis libère l'ancien.
       requestBody:
         required: true
         content:
@@ -900,7 +904,7 @@ components:
         vehicule:
           type: string
           description: Immatriculation de l'ambulance affectée
-          example: SAMU-TN-12
+          example: SAMU-TN-01
         etablissementDestination:
           type: string
         delaiEstimeMinutes:
@@ -979,7 +983,7 @@ components:
             typeIncompatible:
               $ref: '#/components/examples/ErreurTypeCreneauIncompatible'
     RequeteInvalideModificationRendezVous:
-      description: Requête invalide, ou type incompatible avec le créneau
+      description: Requête invalide, nouveau créneau d'un autre médecin, ou type incompatible avec le créneau
       content:
         application/json:
           schema:
@@ -987,6 +991,16 @@ components:
           examples:
             champsInvalides:
               $ref: '#/components/examples/ErreurChampsInvalides'
+            creneauIncoherent:
+              summary: Le nouveau créneau appartient à un autre médecin
+              value:
+                horodatage: '2026-11-22T10:15:00+01:00'
+                statut: 400
+                code: CRENEAU_INCOHERENT
+                message: >-
+                  Le créneau CRN-20261124-002-0930 n'appartient pas au médecin MED-001 du rendez-vous :
+                  pour changer de médecin, annuler puis recréer le rendez-vous
+                chemin: /rendez-vous/RDV-2026-000042
             typeIncompatible:
               $ref: '#/components/examples/ErreurTypeCreneauIncompatible'
     PatientIntrouvable:
@@ -1141,7 +1155,7 @@ components:
         position:
           latitude: 36.8008
           longitude: 10.1800
-        vehicule: SAMU-TN-12
+        vehicule: SAMU-TN-01
         etablissementDestination: Hôpital Charles Nicolle
         delaiEstimeMinutes: 12
         dateDemande: '2026-11-22T09:48:00+01:00'

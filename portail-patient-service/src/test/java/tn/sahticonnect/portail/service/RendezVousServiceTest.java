@@ -228,6 +228,21 @@ class RendezVousServiceTest {
         }
 
         @Test
+        void changerDeMedecin_400EtRienNeChange() {
+            Creneau autreMedecin = creneau("CRN-20261126-002-1000", haddad, LocalDateTime.of(2026, 11, 26, 10, 0),
+                    TypeConsultation.PRESENTIEL);
+            when(creneauRepository.findById(autreMedecin.getId())).thenReturn(Optional.of(autreMedecin));
+
+            assertThatThrownBy(() -> service.modifier(rdv.getId(),
+                    new ModificationRendezVous(autreMedecin.getId(), null, null, null)))
+                    .isInstanceOf(RequeteInvalideException.class)
+                    .satisfies(e -> assertThat(code(e)).isEqualTo("CRENEAU_INCOHERENT"));
+            assertThat(rdv.getCreneau()).isSameAs(ancien);
+            assertThat(autreMedecin.isDisponible()).isTrue();
+            assertThat(ancien.isDisponible()).isFalse();
+        }
+
+        @Test
         void annulation_statutAnnuleEtCreneauLibere() {
             service.annuler(rdv.getId());
 

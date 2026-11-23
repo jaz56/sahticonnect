@@ -52,7 +52,8 @@ Chaque réponse 201 porte un en-tête `Location`, par exemple `/rendez-vous/RDV-
   le premier créneau URGENCE libre qui commence dans les 2 h. S'il n'y en a pas, réponse 409 `AUCUN_CRENEAU_URGENCE`.
 - **Verrou optimiste** : `@Version` sur `Creneau`. Si deux réservations simultanées visent le même créneau,
   une seule réussit et l'autre reçoit 409 `CRENEAU_DEJA_RESERVE`.
-- **PUT `/rendez-vous/{id}`** : changer de créneau réserve le nouveau puis libère l'ancien. Un `statut`
+- **PUT `/rendez-vous/{id}`** : changer de créneau réserve le nouveau puis libère l'ancien. Le nouveau créneau doit
+  appartenir au même médecin (sinon 400 `CRENEAU_INCOHERENT`) : changer de médecin = annuler puis recréer. Un `statut`
   peut seulement passer à `TERMINE` ou `ABSENT` (clôture). Un RDV qui n'est plus CONFIRME n'est plus
   modifiable (409 `RDV_NON_MODIFIABLE`).
 - **DELETE** : statut `ANNULE` et créneau libéré ; 409 `RDV_NON_ANNULABLE` si le RDV est déjà TERMINE ou ANNULE.

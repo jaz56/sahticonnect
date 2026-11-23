@@ -140,7 +140,10 @@ public class RendezVousService {
 
     // ===================== Modification / annulation =====================
 
-    /** Changer de créneau réserve le nouveau puis libère l'ancien. */
+    /**
+     * Changer de créneau réserve le nouveau puis libère l'ancien. Le nouveau créneau doit appartenir au
+     * même médecin (400 CRENEAU_INCOHERENT) : changer de médecin = annuler puis recréer le rendez-vous.
+     */
     public RendezVous modifier(String id, ModificationRendezVous modification) {
         RendezVous rdv = consulter(id);
         if (modification.estVide()) {
@@ -161,6 +164,11 @@ public class RendezVousService {
                 && (rdv.getCreneau() == null || !modification.creneauId().equals(rdv.getCreneau().getId()));
         if (changementCreneau) {
             Creneau nouveau = chargerCreneau(modification.creneauId());
+            if (!nouveau.getMedecin().getId().equals(rdv.getMedecin().getId())) {
+                throw new RequeteInvalideException("CRENEAU_INCOHERENT", "Le créneau " + nouveau.getId()
+                        + " n'appartient pas au médecin " + rdv.getMedecin().getId()
+                        + " du rendez-vous : pour changer de médecin, annuler puis recréer le rendez-vous");
+            }
             verifierType(nouveau, type);
             occuper(nouveau);
             liberer(rdv.getCreneau());
