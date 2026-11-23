@@ -147,6 +147,14 @@
         </xs:sequence>
     </xs:complexType>
 
+    <!-- Détail d'une SOAP Fault : code stable (PATIENT_INCONNU, VIGNETTE_INVALIDE, ACTE_INVALIDE) + message -->
+    <xs:complexType name="ErreurCnam">
+        <xs:sequence>
+            <xs:element name="code" type="xs:string"/>
+            <xs:element name="message" type="xs:string"/>
+        </xs:sequence>
+    </xs:complexType>
+
     <!-- ===================== OPÉRATION 1 : verifierDroitsCNAM ===================== -->
 
     <xs:element name="verifierDroitsCNAMRequest">
@@ -172,6 +180,8 @@
         </xs:complexType>
     </xs:element>
 
+    <xs:element name="verifierDroitsCNAMFault" type="tns:ErreurCnam"/>
+
     <!-- ===================== OPÉRATION 2 : emettreFeuilleDeSoins ===================== -->
 
     <xs:element name="emettreFeuilleDeSoinsRequest">
@@ -196,6 +206,8 @@
         </xs:complexType>
     </xs:element>
 
+    <xs:element name="emettreFeuilleDeSoinsFault" type="tns:ErreurCnam"/>
+
     <!-- ===================== OPÉRATION 3 : consulterHistorique ===================== -->
 
     <xs:element name="consulterHistoriqueRequest">
@@ -216,6 +228,8 @@
             </xs:sequence>
         </xs:complexType>
     </xs:element>
+
+    <xs:element name="consulterHistoriqueFault" type="tns:ErreurCnam"/>
 
     <!-- ===================== OPÉRATION 4 : comparerGaranties ===================== -->
 
@@ -240,6 +254,8 @@
         </xs:complexType>
     </xs:element>
 
+    <xs:element name="comparerGarantiesFault" type="tns:ErreurCnam"/>
+
 </xs:schema>
   </wsdl:types>
   <wsdl:message name="emettreFeuilleDeSoinsRequest">
@@ -248,6 +264,14 @@
   </wsdl:message>
   <wsdl:message name="verifierDroitsCNAMRequest">
     <wsdl:part element="tns:verifierDroitsCNAMRequest" name="verifierDroitsCNAMRequest">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="verifierDroitsCNAMFault">
+    <wsdl:part element="tns:verifierDroitsCNAMFault" name="verifierDroitsCNAMFault">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="consulterHistoriqueFault">
+    <wsdl:part element="tns:consulterHistoriqueFault" name="consulterHistoriqueFault">
     </wsdl:part>
   </wsdl:message>
   <wsdl:message name="consulterHistoriqueResponse">
@@ -262,8 +286,16 @@
     <wsdl:part element="tns:consulterHistoriqueRequest" name="consulterHistoriqueRequest">
     </wsdl:part>
   </wsdl:message>
+  <wsdl:message name="emettreFeuilleDeSoinsFault">
+    <wsdl:part element="tns:emettreFeuilleDeSoinsFault" name="emettreFeuilleDeSoinsFault">
+    </wsdl:part>
+  </wsdl:message>
   <wsdl:message name="emettreFeuilleDeSoinsResponse">
     <wsdl:part element="tns:emettreFeuilleDeSoinsResponse" name="emettreFeuilleDeSoinsResponse">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="comparerGarantiesFault">
+    <wsdl:part element="tns:comparerGarantiesFault" name="comparerGarantiesFault">
     </wsdl:part>
   </wsdl:message>
   <wsdl:message name="comparerGarantiesResponse">
@@ -280,24 +312,32 @@
     </wsdl:input>
       <wsdl:output message="tns:emettreFeuilleDeSoinsResponse" name="emettreFeuilleDeSoinsResponse">
     </wsdl:output>
+      <wsdl:fault message="tns:emettreFeuilleDeSoinsFault" name="emettreFeuilleDeSoinsFault">
+    </wsdl:fault>
     </wsdl:operation>
     <wsdl:operation name="verifierDroitsCNAM">
       <wsdl:input message="tns:verifierDroitsCNAMRequest" name="verifierDroitsCNAMRequest">
     </wsdl:input>
       <wsdl:output message="tns:verifierDroitsCNAMResponse" name="verifierDroitsCNAMResponse">
     </wsdl:output>
+      <wsdl:fault message="tns:verifierDroitsCNAMFault" name="verifierDroitsCNAMFault">
+    </wsdl:fault>
     </wsdl:operation>
     <wsdl:operation name="consulterHistorique">
       <wsdl:input message="tns:consulterHistoriqueRequest" name="consulterHistoriqueRequest">
     </wsdl:input>
       <wsdl:output message="tns:consulterHistoriqueResponse" name="consulterHistoriqueResponse">
     </wsdl:output>
+      <wsdl:fault message="tns:consulterHistoriqueFault" name="consulterHistoriqueFault">
+    </wsdl:fault>
     </wsdl:operation>
     <wsdl:operation name="comparerGaranties">
       <wsdl:input message="tns:comparerGarantiesRequest" name="comparerGarantiesRequest">
     </wsdl:input>
       <wsdl:output message="tns:comparerGarantiesResponse" name="comparerGarantiesResponse">
     </wsdl:output>
+      <wsdl:fault message="tns:comparerGarantiesFault" name="comparerGarantiesFault">
+    </wsdl:fault>
     </wsdl:operation>
   </wsdl:portType>
   <wsdl:binding name="DossierCnamPortSoap11" type="tns:DossierCnamPort">
@@ -310,6 +350,9 @@
       <wsdl:output name="emettreFeuilleDeSoinsResponse">
         <soap:body use="literal"/>
       </wsdl:output>
+      <wsdl:fault name="emettreFeuilleDeSoinsFault">
+        <soap:fault name="emettreFeuilleDeSoinsFault" use="literal"/>
+      </wsdl:fault>
     </wsdl:operation>
     <wsdl:operation name="verifierDroitsCNAM">
       <soap:operation soapAction=""/>
@@ -319,6 +362,9 @@
       <wsdl:output name="verifierDroitsCNAMResponse">
         <soap:body use="literal"/>
       </wsdl:output>
+      <wsdl:fault name="verifierDroitsCNAMFault">
+        <soap:fault name="verifierDroitsCNAMFault" use="literal"/>
+      </wsdl:fault>
     </wsdl:operation>
     <wsdl:operation name="consulterHistorique">
       <soap:operation soapAction=""/>
@@ -328,6 +374,9 @@
       <wsdl:output name="consulterHistoriqueResponse">
         <soap:body use="literal"/>
       </wsdl:output>
+      <wsdl:fault name="consulterHistoriqueFault">
+        <soap:fault name="consulterHistoriqueFault" use="literal"/>
+      </wsdl:fault>
     </wsdl:operation>
     <wsdl:operation name="comparerGaranties">
       <soap:operation soapAction=""/>
@@ -337,6 +386,9 @@
       <wsdl:output name="comparerGarantiesResponse">
         <soap:body use="literal"/>
       </wsdl:output>
+      <wsdl:fault name="comparerGarantiesFault">
+        <soap:fault name="comparerGarantiesFault" use="literal"/>
+      </wsdl:fault>
     </wsdl:operation>
   </wsdl:binding>
   <wsdl:service name="DossierCnamPortService">

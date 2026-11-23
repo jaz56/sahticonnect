@@ -23,11 +23,33 @@ Règles de tarification (`TarificationService`, BigDecimal, 3 décimales, arrond
 - taux : APCI → 100 % ; sinon filière PUBLIQUE → 80 % ; sinon 50 % ;
 - vignette expirée à la date de l'acte → non couvert, taux 0.
 
-Erreurs (SOAP Fault `Client`) :
-- `PatientInconnuException` : patient inconnu ;
-- `VignetteInvalideException` : la vignette ne correspond pas au patient ;
-- `ActeInvalideException` : coefficient ≤ 0 ;
-- requête non conforme au XSD : rejet par la validation (`PayloadValidatingInterceptor`).
+### Erreurs (SOAP Fault `Client`)
+
+Chaque opération déclare une fault dans le WSDL (`verifierDroitsCNAMFault`, `emettreFeuilleDeSoinsFault`,
+`consulterHistoriqueFault`, `comparerGarantiesFault`, de type `ErreurCnam`). `ErreurCnamExceptionResolver`
+place cet élément dans le `<detail>`, avec un code stable que les clients peuvent tester :
+
+| Code | Exception | Cas |
+|---|---|---|
+| `PATIENT_INCONNU` | `PatientInconnuException` | identifiant patient inconnu |
+| `VIGNETTE_INVALIDE` | `VignetteInvalideException` | la vignette ne correspond pas au patient |
+| `ACTE_INVALIDE` | `ActeInvalideException` | coefficient ≤ 0 |
+
+```xml
+<SOAP-ENV:Fault>
+  <faultcode>SOAP-ENV:Client</faultcode>
+  <faultstring xml:lang="fr">La vignette VG-2026-000003 ne correspond pas au patient PAT-0001</faultstring>
+  <detail>
+    <ns2:verifierDroitsCNAMFault xmlns:ns2="http://sahticonnect.tn/cnam">
+      <ns2:code>VIGNETTE_INVALIDE</ns2:code>
+      <ns2:message>La vignette VG-2026-000003 ne correspond pas au patient PAT-0001</ns2:message>
+    </ns2:verifierDroitsCNAMFault>
+  </detail>
+</SOAP-ENV:Fault>
+```
+
+Une requête non conforme au XSD est rejetée avant l'endpoint par `PayloadValidatingInterceptor`
+(fault `Client` de Spring WS, sans `<detail>` métier).
 
 ## WSDL
 
@@ -45,6 +67,7 @@ repository/*                      ← Spring Data JPA
 entity/*                          ← Assure, FeuilleDeSoins (+ LigneActe), EntreeHistorique (+ actes)
 init/DonneesInitiales             ← 5 patients de test et leur historique
 config/WebServiceConfig           ← MessageDispatcherServlet /ws/*, WSDL, validation XSD
+config/ErreurCnamExceptionResolver ← exceptions métier → SOAP Fault + <detail> ErreurCnam
 ```
 
 ## Lancer

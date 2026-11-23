@@ -232,7 +232,10 @@ class DossierCnamEndpointIntegrationTest {
                 <c:consulterHistoriqueRequest xmlns:c="{ns}">
                   <c:identifiantPatient>PAT-0099</c:identifiantPatient>
                 </c:consulterHistoriqueRequest>""")))
-                .andExpect(clientOrSenderFault("Patient inconnu : PAT-0099"));
+                .andExpect(clientOrSenderFault("Patient inconnu : PAT-0099"))
+                .andExpect(xpath("//detail/c:consulterHistoriqueFault/c:code", PREFIXES).evaluatesTo("PATIENT_INCONNU"))
+                .andExpect(xpath("//detail/c:consulterHistoriqueFault/c:message", PREFIXES)
+                        .evaluatesTo("Patient inconnu : PAT-0099"));
     }
 
     @Test
@@ -243,19 +246,31 @@ class DossierCnamEndpointIntegrationTest {
                   <c:codeVignetteCNAM>VG-2026-000003</c:codeVignetteCNAM>
                   <c:acte>%s</c:acte>
                 </c:verifierDroitsCNAMRequest>""".formatted(acte("C", "1")))))
-                .andExpect(clientOrSenderFault("La vignette VG-2026-000003 ne correspond pas au patient PAT-0001"));
+                .andExpect(clientOrSenderFault("La vignette VG-2026-000003 ne correspond pas au patient PAT-0001"))
+                .andExpect(xpath("//detail/c:verifierDroitsCNAMFault/c:code", PREFIXES).evaluatesTo("VIGNETTE_INVALIDE"));
     }
 
     @Test
     void fault_acteAvecCoefficientNul() {
         client.sendRequest(withPayload(payload("""
-                <c:verifierDroitsCNAMRequest xmlns:c="{ns}">
+                <c:emettreFeuilleDeSoinsRequest xmlns:c="{ns}">
                   <c:identifiantPatient>PAT-0005</c:identifiantPatient>
                   <c:codeVignetteCNAM>VG-2026-000005</c:codeVignetteCNAM>
-                  <c:acte>%s</c:acte>
-                </c:verifierDroitsCNAMRequest>""".formatted(acte("K", "0")))))
+                  <c:dateSoins>2026-11-21</c:dateSoins>
+                  <c:etablissement>Hôpital Habib Thameur</c:etablissement>
+                  <c:medecin>Dr Sami Kallel</c:medecin>
+                  <c:actes>%s</c:actes>
+                </c:emettreFeuilleDeSoinsRequest>""".formatted(acte("K", "0")))))
                 .andExpect(clientOrSenderFault(
-                        "Acte invalide : le coefficient de K doit être strictement positif (reçu : 0)"));
+                        "Acte invalide : le coefficient de K doit être strictement positif (reçu : 0)"))
+                .andExpect(xpath("//detail/c:emettreFeuilleDeSoinsFault/c:code", PREFIXES).evaluatesTo("ACTE_INVALIDE"));
+    }
+
+    @Test
+    void fault_patientInconnu_comparerGaranties() {
+        client.sendRequest(withPayload(payload(comparaison("PAT-0042"))))
+                .andExpect(clientOrSenderFault("Patient inconnu : PAT-0042"))
+                .andExpect(xpath("//detail/c:comparerGarantiesFault/c:code", PREFIXES).evaluatesTo("PATIENT_INCONNU"));
     }
 
     @Test

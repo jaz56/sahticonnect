@@ -149,6 +149,14 @@
         </xs:sequence>
     </xs:complexType>
 
+    <!-- Détail d'une SOAP Fault : code stable (PATIENT_INCONNU, VIGNETTE_INVALIDE, ACTE_INVALIDE) + message -->
+    <xs:complexType name="ErreurCnam">
+        <xs:sequence>
+            <xs:element name="code" type="xs:string"/>
+            <xs:element name="message" type="xs:string"/>
+        </xs:sequence>
+    </xs:complexType>
+
     <!-- ===================== OPÉRATION 1 : verifierDroitsCNAM ===================== -->
 
     <xs:element name="verifierDroitsCNAMRequest">
@@ -174,6 +182,8 @@
         </xs:complexType>
     </xs:element>
 
+    <xs:element name="verifierDroitsCNAMFault" type="tns:ErreurCnam"/>
+
     <!-- ===================== OPÉRATION 2 : emettreFeuilleDeSoins ===================== -->
 
     <xs:element name="emettreFeuilleDeSoinsRequest">
@@ -198,6 +208,8 @@
         </xs:complexType>
     </xs:element>
 
+    <xs:element name="emettreFeuilleDeSoinsFault" type="tns:ErreurCnam"/>
+
     <!-- ===================== OPÉRATION 3 : consulterHistorique ===================== -->
 
     <xs:element name="consulterHistoriqueRequest">
@@ -218,6 +230,8 @@
             </xs:sequence>
         </xs:complexType>
     </xs:element>
+
+    <xs:element name="consulterHistoriqueFault" type="tns:ErreurCnam"/>
 
     <!-- ===================== OPÉRATION 4 : comparerGaranties ===================== -->
 
@@ -241,5 +255,7 @@
             </xs:sequence>
         </xs:complexType>
     </xs:element>
+
+    <xs:element name="comparerGarantiesFault" type="tns:ErreurCnam"/>
 
 </xs:schema>

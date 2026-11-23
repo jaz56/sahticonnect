@@ -1,13 +1,11 @@
 package tn.sahticonnect.cnam.exception;
 
-import org.springframework.ws.soap.server.endpoint.annotation.FaultCode;
-import org.springframework.ws.soap.server.endpoint.annotation.SoapFault;
+/** Aucun assuré ne correspond à l'identifiant patient → fault Client, code PATIENT_INCONNU. */
+public class PatientInconnuException extends CnamException {
 
-/** Aucun assuré ne correspond à l'identifiant patient → SOAP Fault « Client ». */
-@SoapFault(faultCode = FaultCode.CLIENT, locale = "fr")
-public class PatientInconnuException extends RuntimeException {
+    public static final String CODE = "PATIENT_INCONNU";
 
     public PatientInconnuException(String identifiantPatient) {
-        super("Patient inconnu : " + identifiantPatient);
+        super(CODE, "Patient inconnu : " + identifiantPatient);
     }
 }

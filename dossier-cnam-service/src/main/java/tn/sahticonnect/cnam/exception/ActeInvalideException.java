@@ -1,13 +1,11 @@
 package tn.sahticonnect.cnam.exception;
 
-import org.springframework.ws.soap.server.endpoint.annotation.FaultCode;
-import org.springframework.ws.soap.server.endpoint.annotation.SoapFault;
+/** Acte coté invalide (coefficient absent ou ≤ 0) → fault Client, code ACTE_INVALIDE. */
+public class ActeInvalideException extends CnamException {
 
-/** Acte coté invalide (coefficient absent ou ≤ 0) → SOAP Fault « Client ». */
-@SoapFault(faultCode = FaultCode.CLIENT, locale = "fr")
-public class ActeInvalideException extends RuntimeException {
+    public static final String CODE = "ACTE_INVALIDE";
 
     public ActeInvalideException(String message) {
-        super(message);
+        super(CODE, message);
     }
 }
