@@ -1,0 +1,4 @@
+# Client gRPC du capteur simulé
+grpcio==1.76.0
+# Génération des stubs Python depuis docs/proto/telemetrie.proto (apporte aussi protobuf)
+grpcio-tools==1.76.0

@@ -1,0 +1,6 @@
+# Stubs générés par generer_stubs.ps1 (ne pas versionner : le .proto est la source de vérité)
+telemetrie_pb2.py
+telemetrie_pb2.pyi
+telemetrie_pb2_grpc.py
+__pycache__/
+.venv/

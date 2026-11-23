@@ -1,0 +1,6 @@
+# Contexte = racine du dépôt : on n'envoie au build que ce dont l'image a besoin
+*
+!capteur-simulator/requirements.txt
+!capteur-simulator/*.py
+!docs/proto/telemetrie.proto
+capteur-simulator/telemetrie_pb2*.py
