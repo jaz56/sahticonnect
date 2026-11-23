@@ -50,7 +50,7 @@ Une base PostgreSQL par service (database-per-service).
 ## Plan et avancement
 - [x] Étape 0 : cadrage et structure du dépôt
 - [x] Étape 1 : contrats (XSD SOAP, OpenAPI, SDL GraphQL, .proto)
-- [ ] Étape 2 : les 4 services
+- [x] Étape 2 : les 4 services
   - REST : générer les interfaces depuis `docs/openapi/portail-patient.yaml` avec
     `openapi-generator-maven-plugin` (`interfaceOnly=true`) ; les contrôleurs les implémentent.
   - gRPC : la détection des seuils (`telemetrie-service`) applique les règles ci-dessus, y compris
