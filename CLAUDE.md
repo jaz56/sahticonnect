@@ -37,6 +37,15 @@ Une base PostgreSQL par service (database-per-service).
 - Patient non couvert → intervention quand même, `statutFacturation = A_REGULARISER`.
 - Lettres-clés (valeurs fictives) : C = 45, CS = 60, V = 55, K = 3, B = 0,3, Z = 2 DT.
 - États du workflow : ALERTE_RECUE → DROITS_VERIFIES → INTERVENTION_DECLENCHEE → FICHE_PUBLIEE → FACTUREE | ECHEC.
+- Seuils : une seule source de vérité, `telemetrie-service`. Le niveau de chaque mesure est renvoyé dans
+  `Mesure.niveau` (champ 8 du .proto, rempli par le serveur, ignoré en entrée). Les autres services
+  (dashboard…) l'utilisent tel quel et ne recalculent jamais les seuils.
+- Anti-rebond (telemetrie) : une alerte max. par (patient, type, niveau) sur 60 s ; une aggravation est émise immédiatement.
+- Niveau de risque (dashboard) : CRITIQUE = alerte CRITIQUE non résolue < 24 h ; ELEVE = alerte ELEVEE non résolue < 24 h ;
+  MODERE = une alerte < 7 jours ; sinon FAIBLE. Recalculé à chaque alerte enregistrée / résolue / prise en charge
+  ET périodiquement (`@Scheduled`, 5 min, `sahti.risque.recalcul.*`), pour qu'une alerte de plus de 24 h fasse baisser le niveau.
+- Statut d'alerte (dashboard) : NOUVELLE → PRISE_EN_CHARGE (creerIntervention) → RESOLUE (mutation `resoudreAlerte`).
+  `enregistrerAlerte` est idempotente (même id ALR-… → alerte existante) : l'orchestrateur peut réessayer.
 
 ## Patients de test
 | ID | Nom | Pathologie | Couverture |
@@ -56,7 +65,7 @@ Une base PostgreSQL par service (database-per-service).
   - gRPC : la détection des seuils (`telemetrie-service`) applique les règles ci-dessus, y compris
     la diastolique (`TENSION_DIASTOLIQUE` : ÉLEVÉE > 100, CRITIQUE > 120), comme documenté dans
     `docs/proto/telemetrie.proto`.
-- [ ] Étape 3 : capteur simulé et détection des seuils
+- [x] Étape 3 : capteur simulé et détection des seuils
 - [ ] Étape 4 : orchestrateur
 - [ ] Étape 5 : gateway (+ Keycloak en bonus)
 - [ ] Étape 6 : client Angular
