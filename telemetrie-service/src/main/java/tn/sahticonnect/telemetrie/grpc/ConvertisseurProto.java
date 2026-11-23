@@ -27,23 +27,30 @@ public class ConvertisseurProto {
 
     private final Clock horloge;
 
-    /** Mesure Protobuf → mesure métier (constante null si le type n'est pas exploitable). */
+    /**
+     * Mesure Protobuf → mesure métier (constante null si le type n'est pas exploitable).
+     * Le champ niveau envoyé par le client est ignoré : seul le serveur détecte les seuils.
+     */
     public MesureRecue versMesure(Mesure mesure) {
         Instant horodatage = mesure.hasHorodatage() ? versInstant(mesure.getHorodatage()) : horloge.instant();
         return new MesureRecue(mesure.getIdentifiantPatient(), mesure.getCapteurId(), versConstante(mesure.getType()),
-                mesure.getValeur(), mesure.getUnite(), horodatage, mesure.getSequence());
+                mesure.getValeur(), mesure.getUnite(), horodatage, mesure.getSequence(), null);
     }
 
+    /** Mesure stockée → Protobuf, avec le niveau détecté par le serveur. */
     public Mesure versProto(MesureRecue mesure) {
-        return Mesure.newBuilder()
+        Mesure.Builder proto = Mesure.newBuilder()
                 .setIdentifiantPatient(mesure.identifiantPatient())
                 .setCapteurId(nonNul(mesure.capteurId()))
                 .setType(versProto(mesure.constante()))
                 .setValeur(mesure.valeur())
                 .setUnite(mesure.unite() == null || mesure.unite().isBlank() ? mesure.constante().unite() : mesure.unite())
                 .setHorodatage(versTimestamp(mesure.horodatage()))
-                .setSequence(mesure.sequence())
-                .build();
+                .setSequence(mesure.sequence());
+        if (mesure.niveau() != null) {
+            proto.setNiveau(versProto(mesure.niveau()));
+        }
+        return proto.build();
     }
 
     /** Alerte persistée → message diffusé ; la mesure déclenchante est jointe. */

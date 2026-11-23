@@ -21,11 +21,14 @@ import java.util.Optional;
 @Slf4j
 public class TraitementMesures {
 
-    /** Résultat pour l'accusé de réception ; alerte non nulle si une alerte vient d'être émise. */
-    public record Resultat(boolean acceptee, Niveau niveau, String message, Alerte alerte) {
+    /**
+     * Résultat pour l'accusé de réception ; alerte non nulle si une alerte vient d'être émise ;
+     * mesure = mesure stockée, avec son niveau (null si rejetée).
+     */
+    public record Resultat(boolean acceptee, Niveau niveau, String message, Alerte alerte, MesureRecue mesure) {
 
         static Resultat rejet(String motif) {
-            return new Resultat(false, null, motif, null);
+            return new Resultat(false, null, motif, null, null);
         }
     }
 
@@ -43,22 +46,24 @@ public class TraitementMesures {
             return Resultat.rejet(rejet.get());
         }
 
-        stockage.ajouter(mesure);
+        // la mesure est stockée avec son niveau : DernieresMesures le renvoie (seule source des seuils)
         ResultatDetection detection = detecteur.evaluer(mesure.constante(), mesure.valeur());
+        MesureRecue stockee = mesure.avecNiveau(detection.niveau());
+        stockage.ajouter(stockee);
         if (!detection.estAnormal()) {
-            return new Resultat(true, Niveau.NORMAL, "Mesure acceptée", null);
+            return new Resultat(true, Niveau.NORMAL, "Mesure acceptée", null, stockee);
         }
 
         if (!antiRebond.autoriser(mesure.identifiantPatient(), mesure.constante(), detection.niveau())) {
             return new Resultat(true, detection.niveau(), "Mesure acceptée : niveau " + detection.niveau()
                     + " (" + detection.seuilFranchi() + "), alerte déjà émise il y a moins de "
-                    + antiRebond.fenetre().toSeconds() + " s", null);
+                    + antiRebond.fenetre().toSeconds() + " s", null, stockee);
         }
 
-        Alerte alerte = alerteService.enregistrer(mesure, detection);
+        Alerte alerte = alerteService.enregistrer(stockee, detection);
         log.info("{} {} pour {} : {}", alerte.getId(), alerte.getNiveau(), alerte.getIdentifiantPatient(),
                 alerte.getMessage());
         return new Resultat(true, detection.niveau(), "Mesure acceptée : alerte " + detection.niveau() + " "
-                + alerte.getId() + " émise (" + detection.seuilFranchi() + ")", alerte);
+                + alerte.getId() + " émise (" + detection.seuilFranchi() + ")", alerte, stockee);
     }
 }

@@ -123,7 +123,7 @@ type PatientSuivi {
   interventions: [Intervention!]!
 }
 
-"Mesure d'une constante vitale. Source : gRPC DernieresMesures (telemetrie-service) ; niveau calculé par le dashboard."
+"Mesure d'une constante vitale. Source : gRPC DernieresMesures (telemetrie-service)."
 type ConstanteVitale {
   id: ID!
   patientId: ID!
@@ -131,7 +131,7 @@ type ConstanteVitale {
   valeur: Float!
   unite: String!
   horodatage: DateTime!
-  "Niveau détecté pour cette mesure ; null si dans les normes."
+  "Niveau détecté par telemetrie-service (Mesure.niveau, seule source des seuils) ; null si dans les normes."
   niveau: NiveauAlerte
 }
 

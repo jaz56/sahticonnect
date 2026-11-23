@@ -66,6 +66,10 @@ message Mesure {
   string unite = 5;                          // bpm, %, mmHg, °C
   google.protobuf.Timestamp horodatage = 6;
   int64 sequence = 7;                        // numéro croissant par capteur
+  // Niveau détecté par telemetrie-service (seule source de vérité des seuils) : rempli par le serveur
+  // dans DernieresMesures (et dans Alerte.mesure), ignoré en entrée. Nouveau numéro de champ :
+  // évolution compatible, un ancien client l'ignore simplement.
+  NiveauAlerte niveau = 8;
 }
 
 message AccuseReception {

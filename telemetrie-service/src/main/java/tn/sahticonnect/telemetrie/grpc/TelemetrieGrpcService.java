@@ -86,7 +86,7 @@ public class TelemetrieGrpcService extends TelemetrieGrpc.TelemetrieImplBase {
             TraitementMesures.Resultat resultat = traitement.traiter(mesureRecue);
             Alerte alerte = null;
             if (resultat.alerte() != null) {
-                alerte = convertisseur.versProto(resultat.alerte(), mesureRecue);
+                alerte = convertisseur.versProto(resultat.alerte(), resultat.mesure());
                 diffuseur.publier(alerte, resultat.niveau());
             }
             return convertisseur.versAccuse(mesure.getSequence(), resultat, alerte);

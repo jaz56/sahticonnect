@@ -24,7 +24,7 @@ class StockageEtValidationTest {
     private final Instant debut = Instant.parse("2026-11-24T08:00:00Z");
 
     private MesureRecue mesure(Constante constante, int i) {
-        return new MesureRecue("PAT-0001", "CAP-0001", constante, 70 + i, "bpm", debut.plusSeconds(i), i);
+        return new MesureRecue("PAT-0001", "CAP-0001", constante, 70 + i, "bpm", debut.plusSeconds(i), i, null);
     }
 
     @Test

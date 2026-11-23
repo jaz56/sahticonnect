@@ -41,8 +41,8 @@ Ils sont générés au build, et l'image Docker se construit depuis le seul doss
 - Dans une même requête, les appels SOAP sont partagés. Demander `couvert`, `tauxRemboursement` et
   `historiqueSoins` ensemble ne fait qu'un `consulterHistorique` et un `verifierDroitsCNAM`.
 - Les champs distants sont résolus en parallèle (un thread virtuel par appel).
-- `ConstanteVitale.niveau` est calculé par le dashboard avec les seuils de CLAUDE.md, car `DernieresMesures`
-  ne renvoie que la valeur.
+- `ConstanteVitale.niveau` vient de `Mesure.niveau`, calculé par `telemetrie-service`. Le dashboard n'applique
+  aucun seuil : la règle existe à un seul endroit.
 
 ## Réponses partielles
 

@@ -304,6 +304,28 @@ class TelemetrieGrpcIntegrationTest {
     }
 
     @Test
+    void dernieresMesures_niveauDetecteParLeServeur_niveauDuClientIgnore() throws Exception {
+        Instant debut = Instant.parse("2026-11-24T08:00:00Z");
+        List<AccuseReception> accuses = envoyer(
+                mesure("PAT-0002", FREQUENCE_CARDIAQUE, 72).toBuilder()
+                        .setHorodatage(ConvertisseurProto.versTimestamp(debut)).build(),
+                mesure("PAT-0002", FREQUENCE_CARDIAQUE, 120).toBuilder()
+                        .setHorodatage(ConvertisseurProto.versTimestamp(debut.plusSeconds(1))).build(),
+                // un client qui prétend « NORMAL » pour une FC à 150 : ignoré en entrée
+                mesure("PAT-0002", FREQUENCE_CARDIAQUE, 150).toBuilder().setNiveau(NiveauAlerte.NORMAL)
+                        .setHorodatage(ConvertisseurProto.versTimestamp(debut.plusSeconds(2))).build());
+
+        DernieresMesuresResponse reponse = stubBloquant.dernieresMesures(DernieresMesuresRequest.newBuilder()
+                .setIdentifiantPatient("PAT-0002").build());
+        assertThat(reponse.getMesuresList()).extracting(Mesure::getValeur, Mesure::getNiveau).containsExactly(
+                org.assertj.core.groups.Tuple.tuple(150.0, NiveauAlerte.CRITIQUE),
+                org.assertj.core.groups.Tuple.tuple(120.0, NiveauAlerte.ELEVEE),
+                org.assertj.core.groups.Tuple.tuple(72.0, NiveauAlerte.NORMAL));
+        // la mesure jointe à l'alerte porte aussi le niveau
+        assertThat(accuses.get(2).getAlerte().getMesure().getNiveau()).isEqualTo(NiveauAlerte.CRITIQUE);
+    }
+
+    @Test
     void dernieresMesures_patientSansMesure_listeVide() {
         assertThat(stubBloquant.dernieresMesures(DernieresMesuresRequest.newBuilder()
                 .setIdentifiantPatient("PAT-0004").build()).getMesuresList()).isEmpty();
