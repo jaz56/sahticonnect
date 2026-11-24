@@ -9,6 +9,8 @@
     3. attend la fin des workflows déclenchés par ses alertes ;
     4. affiche le workflow, la fiche GraphQL du patient et la feuille de soins (SOAP).
     Compatible Windows PowerShell 5.1 et PowerShell 7.
+    -ViaGateway : toutes les URL HTTP passent par l'API Gateway (http://localhost:8080/api/...). Le capteur, lui,
+    parle gRPC directement à telemetrie : la gateway n'expose pas gRPC (ce n'est pas un client navigateur).
     -Docker : les services tournent dans docker compose, et le capteur est lancé dans un conteneur
     (docker compose --profile capteur run), joignant telemetrie par le réseau Docker (telemetrie:9090).
 
@@ -16,6 +18,7 @@
     .\demo.ps1
     .\demo.ps1 -Patient PAT-0002 -Telemetrie localhost:9090
     .\demo.ps1 -Docker
+    .\demo.ps1 -Docker -ViaGateway
 #>
 param(
     [string]$Patient = "PAT-0001",
@@ -25,8 +28,14 @@ param(
     [string]$Dashboard = "http://localhost:8083/graphql",
     [string]$Orchestrateur = "http://localhost:8085",
     [int]$DureeCapteur = 30,
-    [switch]$Docker
+    [switch]$Docker,
+    [switch]$ViaGateway,                              # toutes les URL passent par l'API Gateway
+    [string]$Gateway = "http://localhost:8080"
 )
+if ($ViaGateway) {
+    $Cnam = "$Gateway/api/cnam/ws"; $Portail = "$Gateway/api/portail"
+    $Dashboard = "$Gateway/api/graphql"; $Orchestrateur = "$Gateway/api/orchestrateur"
+}
 
 $ErrorActionPreference = "Stop"
 $racine = Resolve-Path (Join-Path $PSScriptRoot "..\..\..")   # docs\tests\e2e → racine du dépôt

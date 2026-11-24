@@ -11,12 +11,16 @@
 .EXAMPLE
     .\tester-orchestrateur.ps1
     .\tester-orchestrateur.ps1 -Patient PAT-0001 -Niveau CRITIQUE
+    .\tester-orchestrateur.ps1 -ViaGateway     # http://localhost:8080/api/orchestrateur
 #>
 param(
     [string]$Url = "http://localhost:8085",
     [string]$Patient = "PAT-0003",
-    [ValidateSet("ELEVEE", "CRITIQUE")][string]$Niveau = "ELEVEE"
+    [ValidateSet("ELEVEE", "CRITIQUE")][string]$Niveau = "ELEVEE",
+    [switch]$ViaGateway,                              # toutes les URL passent par l'API Gateway
+    [string]$Gateway = "http://localhost:8080"
 )
+if ($ViaGateway) { $Url = "$Gateway/api/orchestrateur" }
 
 $ErrorActionPreference = "Stop"
 $script:echecs = 0

@@ -5,11 +5,14 @@
 
 .EXAMPLE
     .\tester-soap.ps1
-    .\tester-soap.ps1 -Url http://localhost:8080/ws    # via la gateway, plus tard
+    .\tester-soap.ps1 -ViaGateway                       # via l'API Gateway : http://localhost:8080/api/cnam/ws
 #>
 param(
-    [string]$Url = "http://localhost:8081/ws"
+    [string]$Url = "http://localhost:8081/ws",
+    [switch]$ViaGateway,                              # toutes les URL passent par l'API Gateway
+    [string]$Gateway = "http://localhost:8080"
 )
+if ($ViaGateway) { $Url = "$Gateway/api/cnam/ws" }
 
 $ErrorActionPreference = "Stop"
 

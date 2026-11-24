@@ -10,10 +10,14 @@
 
 .EXAMPLE
     .\tester-graphql.ps1
+    .\tester-graphql.ps1 -ViaGateway     # HTTP et WebSocket via http(s)://localhost:8080/api/graphql
 #>
 param(
-    [string]$Url = "http://localhost:8083/graphql"
+    [string]$Url = "http://localhost:8083/graphql",
+    [switch]$ViaGateway,                              # toutes les URL passent par l'API Gateway
+    [string]$Gateway = "http://localhost:8080"
 )
+if ($ViaGateway) { $Url = "$Gateway/api/graphql" }
 
 $ErrorActionPreference = "Stop"
 $script:echecs = 0
