@@ -1,0 +1,24 @@
+<ol class="frise" aria-label="Étapes du workflow">
+  @for (c of cases(); track c.nom; let i = $index) {
+    <li class="case" [class]="c.statut" [attr.data-etape]="c.nom" [attr.data-statut]="c.statut">
+      <div class="puce">
+        <mat-icon [class.tourne]="c.statut === 'EN_COURS'">{{ icone(c.statut) }}</mat-icon>
+      </div>
+      <div class="texte">
+        <div class="nom">{{ i + 1 }}. {{ c.libelle }}</div>
+        @if (c.etape; as e) {
+          <div class="meta">
+            {{ e.statut }} · {{ e.dureeMs | number: '1.0-0' }} ms
+            @if (e.tentative > 1) { · tentative {{ e.tentative }} }
+          </div>
+          <div class="meta">{{ e.horodatage | date: 'HH:mm:ss' }}</div>
+          @if (e.message) {
+            <div class="message" [matTooltip]="e.message">{{ e.message }}</div>
+          }
+        } @else {
+          <div class="meta">{{ c.statut === 'EN_COURS' ? 'en cours…' : 'à venir' }}</div>
+        }
+      </div>
+    </li>
+  }
+</ol>

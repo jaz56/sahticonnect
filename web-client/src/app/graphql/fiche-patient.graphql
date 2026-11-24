@@ -1,0 +1,103 @@
+# Fiche patient : UNE seule requête pour les données locales du dashboard, les constantes (gRPC telemetrie)
+# et la couverture (SOAP CNAM). Un service distant en panne → champ null + erreur SERVICE_INDISPONIBLE.
+query FichePatient($id: ID!) {
+  patient(id: $id) {
+    id
+    nom
+    prenom
+    dateNaissance
+    age
+    service
+    pathologie
+    niveauRisque
+    medecinReferent
+    couvert
+    tauxRemboursement
+    constantes(limite: 40) {
+      ...Constante
+    }
+    alertes {
+      id
+      niveau
+      statut
+      typeConstante
+      valeur
+      seuilFranchi
+      message
+      horodatage
+    }
+    traitements(actifs: true) {
+      id
+      medicament
+      posologie
+      dateDebut
+      dateFin
+      prescripteur
+    }
+    interventions {
+      ...FicheIntervention
+    }
+  }
+}
+
+# Rafraîchissement du graphique (toutes les 5 s) : seulement les constantes
+query ConstantesPatient($id: ID!) {
+  patient(id: $id) {
+    id
+    constantes(limite: 40) {
+      ...Constante
+    }
+  }
+}
+
+query HistoriqueSoins($patientId: ID!, $page: Int, $taille: Int) {
+  historiqueSoins(patientId: $patientId, page: $page, taille: $taille) {
+    page
+    taille
+    totalElements
+    totalPages
+    elements {
+      date
+      etablissement
+      diagnostic
+      numeroFeuilleSoins
+      actes {
+        lettreCle
+        coefficient
+        libelle
+      }
+    }
+  }
+}
+
+mutation ResoudreAlerte($id: ID!, $commentaire: String) {
+  resoudreAlerte(id: $id, commentaire: $commentaire) {
+    id
+    statut
+  }
+}
+
+fragment Constante on ConstanteVitale {
+  id
+  type
+  valeur
+  unite
+  horodatage
+  niveau
+}
+
+fragment FicheIntervention on Intervention {
+  id
+  patientId
+  type
+  etat
+  statutFacturation
+  description
+  referenceExterne
+  numeroFeuilleSoins
+  montantTotal
+  partCNAM
+  partPatient
+  dateCreation
+  dateMiseAJour
+}

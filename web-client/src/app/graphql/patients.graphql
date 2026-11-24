@@ -1,0 +1,13 @@
+# Tableau de bord du médecin : liste filtrée (service, pathologie, niveau de risque)
+query Patients($filtre: FiltrePatients) {
+  patients(filtre: $filtre) {
+    id
+    nom
+    prenom
+    age
+    service
+    pathologie
+    niveauRisque
+    medecinReferent
+  }
+}

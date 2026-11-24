@@ -1,0 +1,31 @@
+# Subscriptions (WebSocket graphql-transport-ws, via ws://localhost:8080/api/graphql)
+subscription NouvelleAlerte($patientId: ID, $niveauMinimum: NiveauAlerte) {
+  nouvelleAlerte(patientId: $patientId, niveauMinimum: $niveauMinimum) {
+    id
+    patientId
+    niveau
+    statut
+    typeConstante
+    valeur
+    seuilFranchi
+    message
+    horodatage
+  }
+}
+
+subscription NouvelleIntervention($patientId: ID, $service: String) {
+  nouvelleIntervention(patientId: $patientId, service: $service) {
+    ...FicheIntervention
+    patient {
+      id
+      nom
+      prenom
+      service
+    }
+    alerte {
+      id
+      niveau
+      message
+    }
+  }
+}

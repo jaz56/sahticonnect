@@ -1,0 +1,39 @@
+{
+  "$schema": "./node_modules/@openapitools/openapi-generator-cli/config.schema.json",
+  "spaces": 2,
+  "generator-cli": {
+    "version": "7.16.0",
+    "generators": {
+      "portail": {
+        "generatorName": "typescript-angular",
+        "inputSpec": "../docs/openapi/portail-patient.yaml",
+        "output": "src/app/api/portail",
+        "openapiNormalizer": { "SET_TAGS_FOR_ALL_OPERATIONS": "portail" },
+        "additionalProperties": {
+          "ngVersion": "20.0.0",
+          "providedInRoot": true,
+          "stringEnums": true,
+          "useSingleRequestParameter": true,
+          "supportsES6": true,
+          "fileNaming": "kebab-case",
+          "enumPropertyNaming": "original"
+        }
+      },
+      "orchestrateur": {
+        "generatorName": "typescript-angular",
+        "inputSpec": "../docs/openapi/orchestrateur.yaml",
+        "output": "src/app/api/orchestrateur",
+        "openapiNormalizer": { "SET_TAGS_FOR_ALL_OPERATIONS": "orchestrateur" },
+        "additionalProperties": {
+          "ngVersion": "20.0.0",
+          "providedInRoot": true,
+          "stringEnums": true,
+          "useSingleRequestParameter": true,
+          "supportsES6": true,
+          "fileNaming": "kebab-case",
+          "enumPropertyNaming": "original"
+        }
+      }
+    }
+  }
+}
