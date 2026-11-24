@@ -164,7 +164,7 @@ public class DossierCnamService {
     }
 
     /** Empreinte SHA-256 (hex) de numéro + patient + date + actes + montant (certification simulée). */
-    static String codeCertification(FeuilleDeSoins feuille) {
+    public static String codeCertification(FeuilleDeSoins feuille) {
         String actes = feuille.getLignes().stream()
                 .map(ligne -> ligne.getActe().toString())
                 .collect(Collectors.joining(","));

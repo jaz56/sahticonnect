@@ -8,13 +8,21 @@ import org.springframework.transaction.annotation.Transactional;
 import tn.sahticonnect.cnam.entity.ActeCote;
 import tn.sahticonnect.cnam.entity.Assure;
 import tn.sahticonnect.cnam.entity.EntreeHistorique;
+import tn.sahticonnect.cnam.entity.FeuilleDeSoins;
 import tn.sahticonnect.cnam.entity.Filiere;
 import tn.sahticonnect.cnam.entity.LettreCle;
+import tn.sahticonnect.cnam.entity.LigneActe;
+import tn.sahticonnect.cnam.entity.StatutFeuille;
 import tn.sahticonnect.cnam.repository.AssureRepository;
 import tn.sahticonnect.cnam.repository.EntreeHistoriqueRepository;
+import tn.sahticonnect.cnam.repository.FeuilleDeSoinsRepository;
+import tn.sahticonnect.cnam.service.DossierCnamService;
+import tn.sahticonnect.cnam.service.TarificationService;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,6 +40,9 @@ public class DonneesInitiales implements CommandLineRunner {
 
     private final AssureRepository assureRepository;
     private final EntreeHistoriqueRepository historiqueRepository;
+    private final FeuilleDeSoinsRepository feuilleRepository;
+    private final TarificationService tarification;
+    private final Clock horloge;
 
     @Override
     @Transactional
@@ -111,7 +122,45 @@ public class DonneesInitiales implements CommandLineRunner {
                 entree(hedi, "2026-08-14", "Hôpital Habib Thameur", "Bilan de chute – gériatrie",
                         null, acte(LettreCle.CS, "1", "Consultation gériatrie"))
         ));
-        log.info("Données de test chargées : 5 assurés, {} entrées d'historique", historiqueRepository.count());
+        feuilleAmbulanceDeDemonstration(ahmed);
+        log.info("Données de test chargées : 5 assurés, {} entrées d'historique, {} feuille(s) de soins",
+                historiqueRepository.count(), feuilleRepository.count());
+    }
+
+    /**
+     * Feuille de l'ambulance de démonstration du dashboard (intervention INT-AAAA-000001 de PAT-0001, il y a 2 h) :
+     * V 1 + K 30 = 145,000 DT, APCI 100 %, certifiée. Numéro FS-AAAA-900004 (série 9xxxxx des données de démo,
+     * distincte de la séquence des feuilles émises).
+     */
+    private void feuilleAmbulanceDeDemonstration(Assure ahmed) {
+        LocalDate date = LocalDateTime.now(horloge).minusHours(2).toLocalDate();
+        int annee = LocalDate.now(horloge).getYear();
+        List<ActeCote> actes = List.of(acte(LettreCle.V, "1", "Visite à domicile (intervention ambulance)"),
+                acte(LettreCle.K, "30", "Prise en charge et transport médicalisé"));
+        FeuilleDeSoins feuille = new FeuilleDeSoins();
+        feuille.setNumero("FS-%d-900004".formatted(annee));
+        feuille.setAssure(ahmed);
+        feuille.setDateSoins(date);
+        feuille.setEtablissement("SahtiConnect – intervention à domicile");
+        feuille.setMedecin("Équipe d'intervention SahtiConnect");
+        feuille.setReferenceIntervention("INT-%d-000001".formatted(annee));
+        for (ActeCote a : actes) {
+            feuille.ajouterLigne(new LigneActe(new ActeCote(a.getLettreCle(), a.getCoefficient(), a.getLibelle()),
+                    tarification.montantActe(a)));
+        }
+        BigDecimal total = tarification.montantTotal(actes);   // 145,000 DT
+        feuille.setMontantTotal(total);
+        feuille.setTauxApplique(100);                           // APCI
+        feuille.setPartCNAM(total);
+        feuille.setPartPatient(new BigDecimal("0.000"));
+        feuille.setStatut(StatutFeuille.CERTIFIEE);
+        feuille.setCodeCertification(DossierCnamService.codeCertification(feuille));
+        feuilleRepository.save(feuille);
+
+        EntreeHistorique entree = entree(ahmed, date.toString(), feuille.getEtablissement(),
+                "Prise en charge suite à l'intervention " + feuille.getReferenceIntervention(),
+                feuille.getNumero(), actes.toArray(ActeCote[]::new));
+        historiqueRepository.save(entree);
     }
 
     private static ActeCote acte(LettreCle lettreCle, String coefficient, String libelle) {

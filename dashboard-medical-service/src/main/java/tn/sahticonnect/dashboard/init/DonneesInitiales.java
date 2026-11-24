@@ -119,9 +119,10 @@ public class DonneesInitiales implements CommandLineRunner {
         Intervention ambulance = intervention(annee, "PAT-0001", TypeIntervention.AMBULANCE, ahmed.getId(),
                 "Ambulance SAMU-TN-01 vers l'Hôpital Charles Nicolle", "AMB-" + annee + "-900001",
                 EtatWorkflow.FACTUREE, StatutFacturation.FACTUREE, maintenant.minusHours(2).plusMinutes(1));
-        ambulance.setNumeroFeuilleSoins("FS-" + annee + "-900001");
-        ambulance.setMontantTotal(new BigDecimal("60.000"));
-        ambulance.setPartCNAM(new BigDecimal("60.000"));
+        // feuille certifiée présente aussi dans les données de dossier-cnam : V 1 + K 30 = 145,000 DT, APCI 100 %
+        ambulance.setNumeroFeuilleSoins("FS-" + annee + "-900004");
+        ambulance.setMontantTotal(new BigDecimal("145.000"));
+        ambulance.setPartCNAM(new BigDecimal("145.000"));
         ambulance.setPartPatient(new BigDecimal("0.000"));
         ambulance.setDateMiseAJour(maintenant.minusHours(1));
         // PAT-0002 : vignette expirée → intervention quand même, facturation à régulariser
