@@ -61,7 +61,7 @@ function Test-Subscription {
     function Send-Message($objet) {
         $octets = [System.Text.Encoding]::UTF8.GetBytes(($objet | ConvertTo-Json -Depth 10 -Compress))
         $segment = New-Object System.ArraySegment[byte] -ArgumentList @(, $octets)
-        $ws.SendAsync($segment, [System.Net.WebSockets.WebSocketMessageType]::Text, $true, $annulation).GetAwaiter().GetResult()
+        $null = $ws.SendAsync($segment, [System.Net.WebSockets.WebSocketMessageType]::Text, $true, $annulation).GetAwaiter().GetResult()
     }
     function Receive-Message([int]$delaiMs) {
         $segment = New-Object System.ArraySegment[byte] -ArgumentList @(, $tampon)
@@ -71,7 +71,7 @@ function Test-Subscription {
     }
 
     try {
-        $ws.ConnectAsync([Uri]($Url -replace "^http", "ws"), $annulation).GetAwaiter().GetResult()
+        $null = $ws.ConnectAsync([Uri]($Url -replace "^http", "ws"), $annulation).GetAwaiter().GetResult()
         Send-Message @{ type = "connection_init" }
         $ack = Receive-Message 5000
         if ($ack.type -ne "connection_ack") { throw "pas de connection_ack" }
@@ -87,7 +87,7 @@ function Test-Subscription {
             $script:echecs++
         }
         Send-Message @{ id = "1"; type = "complete" }
-        $ws.CloseAsync([System.Net.WebSockets.WebSocketCloseStatus]::NormalClosure, "fin", $annulation).GetAwaiter().GetResult()
+        $null = $ws.CloseAsync([System.Net.WebSockets.WebSocketCloseStatus]::NormalClosure, "fin", $annulation).GetAwaiter().GetResult()
     } catch {
         Write-Host "Subscription en échec : $($_.Exception.Message)" -ForegroundColor Red
         $script:echecs++

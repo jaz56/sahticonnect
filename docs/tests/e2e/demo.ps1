@@ -9,10 +9,13 @@
     3. attend la fin des workflows déclenchés par ses alertes ;
     4. affiche le workflow, la fiche GraphQL du patient et la feuille de soins (SOAP).
     Compatible Windows PowerShell 5.1 et PowerShell 7.
+    -Docker : les services tournent dans docker compose, et le capteur est lancé dans un conteneur
+    (docker compose --profile capteur run), joignant telemetrie par le réseau Docker (telemetrie:9090).
 
 .EXAMPLE
     .\demo.ps1
     .\demo.ps1 -Patient PAT-0002 -Telemetrie localhost:9090
+    .\demo.ps1 -Docker
 #>
 param(
     [string]$Patient = "PAT-0001",
@@ -21,7 +24,8 @@ param(
     [string]$Portail = "http://localhost:8082",
     [string]$Dashboard = "http://localhost:8083/graphql",
     [string]$Orchestrateur = "http://localhost:8085",
-    [int]$DureeCapteur = 30
+    [int]$DureeCapteur = 30,
+    [switch]$Docker
 )
 
 $ErrorActionPreference = "Stop"
@@ -80,24 +84,32 @@ if ($manquants -gt 0) {
 
 # ===================== 2. Capteur =====================
 Write-Host ""
-Write-Host "2. Capteur simulé : $Patient, tachycardie, $DureeCapteur s" -ForegroundColor Cyan
-$python = Join-Path $dossierCapteur ".venv\Scripts\python.exe"
-if (-not (Test-Path $python)) { $python = "python" }
-if (-not (Test-Path (Join-Path $dossierCapteur "telemetrie_pb2.py"))) {
-    $env:Path = (Split-Path $python) + ";" + $env:Path
-    & (Join-Path $dossierCapteur "generer_stubs.ps1") | Out-Null
-}
+Write-Host ("2. Capteur simulé : $Patient, tachycardie, $DureeCapteur s" + $(if ($Docker) { " (conteneur docker compose)" } else { "" })) -ForegroundColor Cyan
+$argumentsCapteur = "--patient", $Patient, "--scenario", "tachycardie", "--duree", $DureeCapteur, "--bascule", "3"
 $avant = @(Get-Workflows | ForEach-Object { $_.id })
 $journal = Join-Path ([System.IO.Path]::GetTempPath()) "sahticonnect-capteur.log"
-$capteur = Start-Process -FilePath $python -WorkingDirectory $dossierCapteur -PassThru -WindowStyle Hidden `
-    -RedirectStandardOutput $journal `
-    -ArgumentList "capteur.py", "--patient", $Patient, "--scenario", "tachycardie", "--duree", $DureeCapteur, "--bascule", "3", "--hote", $Telemetrie
+if ($Docker) {
+    # conteneur éphémère du profil "capteur" ; -T : pas de terminal (sortie redirigée vers le journal)
+    $capteur = Start-Process -FilePath "docker" -WorkingDirectory $racine -PassThru -WindowStyle Hidden `
+        -RedirectStandardOutput $journal -RedirectStandardError "$journal.docker" `
+        -ArgumentList (@("compose", "--profile", "capteur", "run", "--rm", "-T", "capteur") + $argumentsCapteur + @("--hote", "telemetrie:9090"))
+} else {
+    $python = Join-Path $dossierCapteur ".venv\Scripts\python.exe"
+    if (-not (Test-Path $python)) { $python = "python" }
+    if (-not (Test-Path (Join-Path $dossierCapteur "telemetrie_pb2.py"))) {
+        $env:Path = (Split-Path $python) + ";" + $env:Path
+        & (Join-Path $dossierCapteur "generer_stubs.ps1") | Out-Null
+    }
+    $capteur = Start-Process -FilePath $python -WorkingDirectory $dossierCapteur -PassThru -WindowStyle Hidden `
+        -RedirectStandardOutput $journal `
+        -ArgumentList (@("capteur.py") + $argumentsCapteur + @("--hote", $Telemetrie))
+}
 Write-Host "   capteur lancé (PID $($capteur.Id)), journal : $journal"
 
 # ===================== 3. Attente des workflows =====================
 Write-Host ""
 Write-Host "3. Attente des workflows déclenchés par les alertes" -ForegroundColor Cyan
-$limite = (Get-Date).AddSeconds($DureeCapteur + 60)
+$limite = (Get-Date).AddSeconds($DureeCapteur + 90)   # + démarrage éventuel du conteneur
 $nouveaux = @()
 do {
     Start-Sleep -Seconds 2
