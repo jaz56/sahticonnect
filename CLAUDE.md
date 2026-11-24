@@ -82,7 +82,14 @@ Une base PostgreSQL par service (database-per-service).
   - Healthchecks : `/actuator/health` (sondes activées : UP seulement après le chargement des données) ;
     `grpc_health_probe` pour telemetrie. `depends_on: service_healthy` ; l'orchestrateur attend les 4 autres.
   - PostgreSQL : `schema.sql` idempotent (`IF NOT EXISTS`), données de test chargées seulement si la base est vide.
-- [ ] Étape 5 : gateway (+ Keycloak en bonus)
+- [x] Étape 5 : gateway (Keycloak en bonus, plus tard)
+  - `api-gateway` (8080), Spring Cloud 2025.0.3 (Boot 3.5), WebFlux. Routes : `/api/portail/**`, `/api/orchestrateur/**`
+    (SSE `/workflows/flux` sans timeout), `/api/graphql` (HTTP + WebSocket), `/api/cnam/ws/**` (SOAP + WSDL) ;
+    préfixe retiré avant de relayer. gRPC n'est PAS exposé (navigateur → GraphQL subscription et SSE).
+  - CORS http://localhost:4200, `X-Correlation-Id`, timeout 5 s, circuit breaker par route ; fallback 503 au format
+    `Erreur` (+ `service`), SOAP Fault Server pour la CNAM. Swagger UI regroupé (contrats relayés, `servers` réécrit).
+  - dossier-cnam : `forward-headers-strategy=framework` → le WSDL annonce l'adresse par laquelle il est lu.
+  - Scripts de test : paramètre `-ViaGateway`. En production, seul le port 8080 serait publié.
 - [ ] Étape 6 : client Angular
 - [ ] Étape 8 : tests et documentation
 

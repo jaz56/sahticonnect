@@ -19,10 +19,11 @@ Chaque service a sa propre base de données (*database-per-service*).
 
 ```
  Présentation              web-client (Angular)  ⏳ :4200
-                                     │ HTTP + WebSocket
- Point d'entrée              api-gateway  ⏳ :8080
-                          ┌──────────┴───────────┐
-                          ▼ REST                 ▼ GraphQL + subscriptions
+                                     │ HTTP + WebSocket + SSE (un seul hôte : http://localhost:8080)
+ Point d'entrée              api-gateway :8080   CORS, X-Correlation-Id, timeouts, circuit breakers
+              ┌──────────────┬───────┴──────┬─────────────────────┐
+              ▼ /api/portail ▼ /api/graphql ▼ /api/orchestrateur  ▼ /api/cnam/ws
+              REST           GraphQL + WS   REST + SSE            SOAP + WSDL   (gRPC : non exposé)
  Services       portail-patient            dashboard-medical ──── gRPC DernieresMesures ───► telemetrie
                 REST :8082                 GraphQL :8083     ──── SOAP historique, droits ─► dossier-cnam
                 RDV, ordonnances,          vue consolidée
@@ -49,6 +50,11 @@ Chaque service a sa propre base de données (*database-per-service*).
 | orchestrateur | dashboard-medical-service | GraphQL `enregistrerAlerte`, `creerIntervention`, `mettreAJourIntervention` | Fiche de suivi du médecin |
 | dashboard-medical-service | telemetrie-service | gRPC `DernieresMesures` (unaire) | Constantes affichées |
 | dashboard-medical-service | dossier-cnam-service | SOAP `consulterHistorique`, `verifierDroitsCNAM` | Historique et couverture |
+| client web (navigateur) | api-gateway | HTTP, WebSocket, SSE | Point d'entrée unique, relayé vers portail, dashboard, orchestrateur, CNAM |
+
+Le client web ne parle **qu'à la gateway**. gRPC n'est pas exposé au navigateur, qui ne sait pas le parler :
+les alertes lui arrivent par la subscription GraphQL `nouvelleAlerte` et l'avancement des workflows par le flux SSE.
+Détails et tableau des routes : [README de la gateway](api-gateway/README.md).
 
 Workflow d'alerte, piloté par l'orchestrateur (une file par patient, chaque étape tracée et relançable) :
 `ALERTE_RECUE → DROITS_VERIFIES → INTERVENTION_DECLENCHEE → FICHE_PUBLIEE → FACTUREE` (ou `ECHEC`).
@@ -64,7 +70,7 @@ Le diagramme de séquence est dans le [README de l'orchestrateur](orchestrateur-
 | telemetrie-service | gRPC (Spring gRPC) | 9090 | ✅ | [README](telemetrie-service/README.md) | [proto](docs/proto/telemetrie.proto) |
 | capteur-simulator | Python grpcio | – | ✅ | [README](capteur-simulator/README.md) | [proto](docs/proto/telemetrie.proto) |
 | orchestrateur-service | REST + SSE, clients des 4 protocoles | 8085 | ✅ | [README](orchestrateur-service/README.md) | [OpenAPI](docs/openapi/orchestrateur.yaml) |
-| api-gateway | Spring Cloud Gateway | 8080 | ⏳ à venir | – | – |
+| api-gateway | Spring Cloud Gateway (WebFlux) | 8080 | ✅ | [README](api-gateway/README.md) | expose les contrats des services sous `/api/…` |
 | web-client | Angular + Apollo | 4200 | ⏳ à venir | – | – |
 
 Les contrats de `docs/` sont la **source de vérité**. Chaque service en garde une copie identique, à partir de
@@ -103,7 +109,10 @@ cd dashboard-medical-service; .\mvnw.cmd spring-boot:run
 # 5. orchestrateur-service (REST, 8085) : s'abonne aux alertes de telemetrie, appelle les 3 autres
 cd orchestrateur-service; .\mvnw.cmd spring-boot:run
 
-# 6. capteur simulé (Python) : installation unique, puis lancement
+# 6. api-gateway (8080) : point d'entrée unique, relaie vers les services ci-dessus
+cd api-gateway; .\mvnw.cmd spring-boot:run
+
+# 7. capteur simulé (Python) : installation unique, puis lancement
 cd capteur-simulator
 python -m venv .venv; .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt; .\generer_stubs.ps1
@@ -119,6 +128,9 @@ Le dashboard démarre aussi sans les autres services. Les champs distants valent
 
 | Interface | URL |
 |---|---|
+| **Via la gateway** : Swagger UI regroupé (portail, orchestrateur) | http://localhost:8080/swagger-ui.html |
+| **Via la gateway** : GraphQL, WSDL, SSE | http://localhost:8080/api/graphql, /api/cnam/ws/dossier-cnam.wsdl, /api/orchestrateur/workflows/flux |
+| Routes de la gateway | http://localhost:8080/actuator/gateway/routes |
 | WSDL du service SOAP | http://localhost:8081/ws/dossier-cnam.wsdl |
 | Swagger UI (contrat REST) | http://localhost:8082/swagger-ui.html |
 | GraphiQL | http://localhost:8083/graphiql |
@@ -129,8 +141,9 @@ Le dashboard démarre aussi sans les autres services. Les champs distants valent
 
 ## Lancer avec Docker
 
-[`docker-compose.yml`](docker-compose.yml) démarre les 5 services et PostgreSQL avec **une seule commande**, sur les
-mêmes ports qu'en local.
+[`docker-compose.yml`](docker-compose.yml) démarre l'API Gateway, les 5 services et PostgreSQL avec **une seule
+commande**, sur les mêmes ports qu'en local. **En production, seul le port 8080 (gateway) serait publié** : les ports
+des services ne le sont ici que pour le développement et les tests en accès direct.
 
 | Conteneur | Image | Port | Healthcheck |
 |---|---|---|---|
@@ -140,11 +153,12 @@ mêmes ports qu'en local.
 | `telemetrie` | `telemetrie-service` | 9090 | `grpc_health_probe` (gRPC `Health/Check`) |
 | `dashboard-medical` | `dashboard-medical-service` | 8083 | `GET /actuator/health` |
 | `orchestrateur` | `orchestrateur-service` | 8085 | `GET /actuator/health` |
+| `api-gateway` | `api-gateway` | 8080 | `GET /actuator/health` |
 | `capteur` | `capteur-simulator` (profil `capteur`) | – | – |
 
 - **Ordre de démarrage** imposé par `depends_on: condition: service_healthy` :
   `postgres` → `dossier-cnam`, `portail-patient`, `telemetrie` → `dashboard-medical` → `orchestrateur`, qui attend
-  que les 4 autres soient prêts.
+  que les 4 autres soient prêts → `api-gateway`, qui attend les 5 services.
 - **Healthchecks** : un service n'est « healthy » qu'une fois démarré ET ses données de test chargées. Les sondes
   d'actuator incluent `readinessState`. `telemetrie` est un service gRPC pur, sans serveur HTTP : plutôt que
   d'ajouter Tomcat et actuator juste pour la santé, l'image embarque `grpc_health_probe`, qui interroge le service
@@ -168,8 +182,9 @@ docker compose logs --tail 50 dossier-cnam portail-patient
 # Capteur simulé (conteneur éphémère, joint telemetrie par le réseau Docker)
 docker compose --profile capteur run --rm capteur --patient PAT-0001 --scenario tachycardie --hote telemetrie:9090
 
-# Démo de bout en bout contre la stack Docker (capteur lancé en conteneur)
+# Démo de bout en bout contre la stack Docker (capteur lancé en conteneur), en direct ou via la gateway
 .\docs\tests\e2e\demo.ps1 -Docker
+.\docs\tests\e2e\demo.ps1 -Docker -ViaGateway
 
 # Arrêter (les données restent dans le volume) / réinitialiser (efface les bases : données de test rechargées)
 docker compose down
@@ -189,17 +204,18 @@ docker compose exec postgres psql -U postgres -d orchestrateur
   [Console]::OutputEncoding = [Text.Encoding]::UTF8
   ```
 
-**Mesuré** (`docker stats`, stack au repos, après les scripts de test et la démo) :
+**Mesuré** (`docker stats`, stack au repos, après tous les scripts de test et la démo via la gateway) :
 
 | Conteneur | Mémoire / limite |
 |---|---|
-| dossier-cnam | 291 Mo / 512 Mo |
-| portail-patient | 292 Mo / 512 Mo |
-| telemetrie | 269 Mo / 512 Mo |
-| dashboard-medical | 308 Mo / 512 Mo |
-| orchestrateur | 369 Mo / 512 Mo |
-| postgres (5 bases) | 115 Mo |
-| **Total** | **≈ 1,65 Go** |
+| dossier-cnam | 265 Mo / 512 Mo |
+| portail-patient | 276 Mo / 512 Mo |
+| telemetrie | 288 Mo / 512 Mo |
+| dashboard-medical | 388 Mo / 512 Mo |
+| orchestrateur | 407 Mo / 512 Mo |
+| api-gateway | 308 Mo / 512 Mo |
+| postgres (5 bases) | 132 Mo |
+| **Total** | **≈ 2,1 Go** |
 
 Démarrage complet à froid (images déjà construites) : environ 75 s. Redémarrage avec des données existantes : environ 45 s.
 
@@ -238,7 +254,8 @@ Pas à pas :
 ## Tester
 
 Chaque service se teste avec `.\mvnw.cmd verify` : tests unitaires et d'intégration. Avec les services démarrés,
-il y a en plus :
+il y a en plus les scripts ci-dessous. Chacun accepte **`-ViaGateway`** : toutes ses URL passent alors par
+http://localhost:8080 (par exemple `.\docs\tests\rest\tester-rest.ps1 -ViaGateway`).
 
 | Service | Script / ressource | Contenu |
 |---|---|---|
@@ -271,6 +288,7 @@ sahticonnect/
 ├── dashboard-medical-service/    ← GraphQL :8083
 ├── telemetrie-service/           ← gRPC   :9090
 ├── orchestrateur-service/        ← REST + clients des 4 protocoles :8085
+├── api-gateway/                  ← Spring Cloud Gateway :8080 (point d'entrée unique)
 └── capteur-simulator/            ← Python (client gRPC)
 ```
 

@@ -71,6 +71,10 @@ Les vignettes valides expirent le 31/12/2027. Chaque patient a 2 ou 3 entrées d
 - Contrat : [`docs/wsdl/dossier-cnam.xsd`](../docs/wsdl/dossier-cnam.xsd), copié à l'identique dans
   `src/main/resources/xsd/`. Le `jaxb2-maven-plugin` en génère les classes JAXB (`tn.sahticonnect.cnam.ws`).
 - WSDL généré au démarrage par `DefaultWsdl11Definition` : http://localhost:8081/ws/dossier-cnam.wsdl.
+- Via l'API Gateway : http://localhost:8080/api/cnam/ws/dossier-cnam.wsdl. L'adresse du service annoncée dans le
+  WSDL est celle par laquelle il a été lu (`transformWsdlLocations` + `server.forward-headers-strategy=framework`,
+  qui lit les en-têtes `X-Forwarded-*` de la gateway) : `http://localhost:8080/api/cnam/ws` via la gateway,
+  `http://localhost:8081/ws` en direct. Un test couvre chaque cas (`WsdlAdresseIntegrationTest`).
   Une copie exportée se trouve dans [`docs/wsdl/dossier-cnam.wsdl`](../docs/wsdl/dossier-cnam.wsdl).
 
 ## Lancer
