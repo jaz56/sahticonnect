@@ -1,6 +1,10 @@
 # Profil par défaut : H2 en mémoire + console H2 (http://localhost:8081/h2-console)
 server:
   port: 8081
+  # Derrière l'API Gateway : les en-têtes X-Forwarded-Host/Port/Proto/Prefix sont pris en compte (ForwardedHeaderFilter),
+  # pour que le WSDL lu via http://localhost:8080/api/cnam/ws annonce l'adresse de la gateway (transformWsdlLocations).
+  # Sans ces en-têtes (accès direct sur 8081), le WSDL garde l'adresse directe.
+  forward-headers-strategy: framework
 
 spring:
   application:
