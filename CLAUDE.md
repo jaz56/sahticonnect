@@ -73,9 +73,19 @@ Une base PostgreSQL par service (database-per-service).
     relance = uniquement les étapes manquantes, feuille de soins jamais réémise.
   - Résilience4j : timeout 3 s, retry 3 tentatives sur erreur technique seulement (jamais sur 4xx métier ni
     SOAP Fault Client), créations réessayées uniquement si la connexion a échoué, circuit breaker par service.
+- [x] Étape 7 : Docker et docker-compose (avancée avant la gateway)
+  - `docker-compose.yml` à la racine : un conteneur `postgres:16-alpine`, une base + un utilisateur par service
+    (`docker/postgres/init.sql`, mots de passe dans `.env`, modèle `.env.example`), les 5 services (profil `docker`),
+    le capteur dans le profil compose `capteur`.
+  - Noms des conteneurs = adresses dans le réseau : `postgres`, `dossier-cnam`, `portail-patient`, `dashboard-medical`,
+    `telemetrie`, `orchestrateur`. Mêmes ports qu'en local (surchargeables par `*_PORT` dans `.env`).
+  - Healthchecks : `/actuator/health` (sondes activées : UP seulement après le chargement des données) ;
+    `grpc_health_probe` pour telemetrie. `depends_on: service_healthy` ; l'orchestrateur attend les 4 autres.
+  - PostgreSQL : `schema.sql` idempotent (`IF NOT EXISTS`), données de test chargées seulement si la base est vide.
 - [ ] Étape 5 : gateway (+ Keycloak en bonus)
 - [ ] Étape 6 : client Angular
-- [ ] Étape 7 : Docker et docker-compose
 - [ ] Étape 8 : tests et documentation
+
+Ordre de réalisation : 7 → 5 → 6 → bonus (Keycloak).
 
 Avance étape par étape : explique ce que tu fais, puis commit à la fin de chaque étape.

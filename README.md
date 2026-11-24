@@ -77,9 +77,10 @@ laquelle le code (JAXB, interfaces Spring, stubs gRPC, schéma GraphQL) est gén
 | JDK | 25 (le code est compilé en `release 21`) ; `JAVA_HOME` doit pointer dessus | services Java |
 | Maven | inutile à installer : chaque service fournit le Maven Wrapper (`mvnw.cmd`) | build |
 | Python | 3.12 ou plus récent (testé en 3.14) | capteur simulé |
-| Docker Desktop | récent | images des services (docker-compose à venir) |
+| Docker Desktop | récent (Compose v2) | stack complète : `docker compose up --build -d` |
 
-Les commandes ci-dessous sont en **PowerShell**, depuis la racine du dépôt.
+Les commandes ci-dessous sont en **PowerShell**, depuis la racine du dépôt. Pour des accents corrects dans la
+console Windows PowerShell 5.1 (logs, scripts) : `[Console]::OutputEncoding = [Text.Encoding]::UTF8`.
 
 ## Lancer en local
 
@@ -125,6 +126,82 @@ Le dashboard démarre aussi sans les autres services. Les champs distants valent
 | Flux SSE des workflows | http://localhost:8085/workflows/flux |
 | gRPC (réflexion, health check) | `localhost:9090` |
 | Consoles H2 | http://localhost:8081/h2-console, :8082/h2-console, :8083/h2-console, :8085/h2-console |
+
+## Lancer avec Docker
+
+[`docker-compose.yml`](docker-compose.yml) démarre les 5 services et PostgreSQL avec **une seule commande**, sur les
+mêmes ports qu'en local.
+
+| Conteneur | Image | Port | Healthcheck |
+|---|---|---|---|
+| `postgres` | `postgres:16-alpine` : une base et un utilisateur par service | – (réseau interne) | `pg_isready` |
+| `dossier-cnam` | `dossier-cnam-service` | 8081 | `GET /actuator/health` |
+| `portail-patient` | `portail-patient-service` | 8082 | `GET /actuator/health` |
+| `telemetrie` | `telemetrie-service` | 9090 | `grpc_health_probe` (gRPC `Health/Check`) |
+| `dashboard-medical` | `dashboard-medical-service` | 8083 | `GET /actuator/health` |
+| `orchestrateur` | `orchestrateur-service` | 8085 | `GET /actuator/health` |
+| `capteur` | `capteur-simulator` (profil `capteur`) | – | – |
+
+- **Ordre de démarrage** imposé par `depends_on: condition: service_healthy` :
+  `postgres` → `dossier-cnam`, `portail-patient`, `telemetrie` → `dashboard-medical` → `orchestrateur`, qui attend
+  que les 4 autres soient prêts.
+- **Healthchecks** : un service n'est « healthy » qu'une fois démarré ET ses données de test chargées. Les sondes
+  d'actuator incluent `readinessState`. `telemetrie` est un service gRPC pur, sans serveur HTTP : plutôt que
+  d'ajouter Tomcat et actuator juste pour la santé, l'image embarque `grpc_health_probe`, qui interroge le service
+  standard `grpc.health.v1.Health` sur le port 9090, celui qu'utilisent vraiment les clients.
+- **Mémoire** : `mem_limit: 512m` par service Java, et `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75` (tas max 384 Mo).
+- **Données** : volume nommé `postgres-data`. Les données de test ne sont chargées que si la base est vide, et
+  `schema.sql` est idempotent (`CREATE SEQUENCE IF NOT EXISTS`). Un redémarrage conserve donc tout, sans doublon.
+
+```powershell
+# Une fois : mots de passe des bases (le fichier .env est ignoré par git)
+Copy-Item .env.example .env        # puis remplacer les "changer-moi"
+
+# Construire et démarrer (premier build : quelques minutes, Maven télécharge les dépendances)
+docker compose up --build -d
+docker compose ps                  # STATUS doit passer à "healthy" pour les 6 conteneurs (1 à 2 min)
+
+# Logs
+docker compose logs -f orchestrateur
+docker compose logs --tail 50 dossier-cnam portail-patient
+
+# Capteur simulé (conteneur éphémère, joint telemetrie par le réseau Docker)
+docker compose --profile capteur run --rm capteur --patient PAT-0001 --scenario tachycardie --hote telemetrie:9090
+
+# Démo de bout en bout contre la stack Docker (capteur lancé en conteneur)
+.\docs\tests\e2e\demo.ps1 -Docker
+
+# Arrêter (les données restent dans le volume) / réinitialiser (efface les bases : données de test rechargées)
+docker compose down
+docker compose down -v
+
+# Console SQL d'une base
+docker compose exec postgres psql -U postgres -d orchestrateur
+```
+
+- **Un service tourne déjà en local** sur le même port (`mvnw spring-boot:run`) : changer le port publié dans
+  `.env` (`CNAM_PORT`, `PORTAIL_PORT`, `DASHBOARD_PORT`, `ORCHESTRATEUR_PORT`, `TELEMETRIE_PORT`), puis passer les
+  URL aux scripts, par exemple `.\docs\tests\soap\tester-soap.ps1 -Url http://localhost:18081/ws`.
+- **Accents dans les logs** : la console Windows PowerShell 5.1 n'est pas en UTF-8 par défaut. Avant
+  `docker compose logs` (ou les scripts de test), exécuter :
+
+  ```powershell
+  [Console]::OutputEncoding = [Text.Encoding]::UTF8
+  ```
+
+**Mesuré** (`docker stats`, stack au repos, après les scripts de test et la démo) :
+
+| Conteneur | Mémoire / limite |
+|---|---|
+| dossier-cnam | 291 Mo / 512 Mo |
+| portail-patient | 292 Mo / 512 Mo |
+| telemetrie | 269 Mo / 512 Mo |
+| dashboard-medical | 308 Mo / 512 Mo |
+| orchestrateur | 369 Mo / 512 Mo |
+| postgres (5 bases) | 115 Mo |
+| **Total** | **≈ 1,65 Go** |
+
+Démarrage complet à froid (images déjà construites) : environ 75 s. Redémarrage avec des données existantes : environ 45 s.
 
 ## Scénario de démo : capteur → alerte → workflow → dashboard
 
@@ -180,6 +257,9 @@ il y a en plus :
 ```
 sahticonnect/
 ├── CLAUDE.md                     ← cadrage, règles métier, avancement
+├── docker-compose.yml            ← stack complète (5 services + PostgreSQL + capteur)
+├── .env.example                  ← modèle du .env (mots de passe des bases, ports publiés)
+├── docker/postgres/init.sql      ← une base + un utilisateur par service
 ├── docs/
 │   ├── wsdl/                     ← dossier-cnam.xsd (contrat) + dossier-cnam.wsdl (exporté)
 │   ├── openapi/                  ← portail-patient.yaml, orchestrateur.yaml
