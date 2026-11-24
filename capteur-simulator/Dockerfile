@@ -14,4 +14,4 @@ RUN python -m grpc_tools.protoc -I proto --python_out=. --grpc_python_out=. prot
 COPY capteur-simulator/*.py ./
 
 ENTRYPOINT ["python", "capteur.py"]
-CMD ["--patient", "PAT-0001", "--scenario", "tachycardie", "--hote", "telemetrie-service:9090"]
+CMD ["--patient", "PAT-0001", "--scenario", "tachycardie", "--hote", "telemetrie:9090"]

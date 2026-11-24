@@ -1,0 +1,187 @@
+# SahtiConnect : les 5 services + PostgreSQL (une base par service dans un seul conteneur).
+#
+#   Copy-Item .env.example .env        # une fois : mots de passe des bases
+#   docker compose up --build -d       # construit et démarre tout
+#   docker compose ps                  # état et healthchecks
+#   docker compose --profile capteur run --rm capteur --patient PAT-0001 --scenario tachycardie --hote telemetrie:9090
+#   docker compose down                # arrête (les données restent dans le volume)
+#   docker compose down -v             # arrête ET efface les données (réinitialisation)
+#
+# Dans le réseau Compose, chaque conteneur est joignable par le nom de son service (dossier-cnam, telemetrie…).
+
+name: sahticonnect
+
+# ---------- Réglages communs aux services Java ----------
+x-service-java: &service-java
+  restart: on-failure
+  mem_limit: 512m
+  environment: &env-java
+    SPRING_PROFILES_ACTIVE: docker
+    JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75   # tas max = 75 % de mem_limit (384 Mo)
+    TZ: Africa/Tunis
+
+# Healthcheck commun : intervalle, tentatives et délai de démarrage (JVM + données de test)
+x-healthcheck: &healthcheck
+  interval: 10s
+  timeout: 5s
+  retries: 5
+  start_period: 120s
+  start_interval: 3s
+
+services:
+
+  # ---------- PostgreSQL : un conteneur, cinq bases, cinq utilisateurs ----------
+  postgres:
+    image: postgres:16-alpine
+    restart: on-failure
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?définir POSTGRES_PASSWORD dans .env (voir .env.example)}
+      # lus par docker/postgres/init.sql (\getenv) au premier démarrage
+      CNAM_DB_PASSWORD: ${CNAM_DB_PASSWORD:?voir .env.example}
+      PORTAIL_DB_PASSWORD: ${PORTAIL_DB_PASSWORD:?voir .env.example}
+      DASHBOARD_DB_PASSWORD: ${DASHBOARD_DB_PASSWORD:?voir .env.example}
+      TELEMETRIE_DB_PASSWORD: ${TELEMETRIE_DB_PASSWORD:?voir .env.example}
+      ORCHESTRATEUR_DB_PASSWORD: ${ORCHESTRATEUR_DB_PASSWORD:?voir .env.example}
+      TZ: Africa/Tunis
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      # en TCP (-h 127.0.0.1) : pendant l'exécution de init.sql, le serveur temporaire n'écoute que sur le
+      # socket local, le conteneur ne devient donc « healthy » qu'une fois les bases créées
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "orchestrateur", "-d", "orchestrateur"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ---------- dossier-cnam-service (SOAP) ----------
+  dossier-cnam:
+    <<: *service-java
+    build: ./dossier-cnam-service
+    image: sahticonnect/dossier-cnam-service
+    ports:
+      - "${CNAM_PORT:-8081}:8081"
+    environment:
+      <<: *env-java
+      DB_URL: jdbc:postgresql://postgres:5432/cnam
+      DB_USER: cnam
+      DB_PASSWORD: ${CNAM_DB_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/actuator/health"]
+
+  # ---------- portail-patient-service (REST) ----------
+  portail-patient:
+    <<: *service-java
+    build: ./portail-patient-service
+    image: sahticonnect/portail-patient-service
+    ports:
+      - "${PORTAIL_PORT:-8082}:8082"
+    environment:
+      <<: *env-java
+      DB_URL: jdbc:postgresql://postgres:5432/portail
+      DB_USER: portail
+      DB_PASSWORD: ${PORTAIL_DB_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "curl", "-fsS", "http://localhost:8082/actuator/health"]
+
+  # ---------- telemetrie-service (gRPC) ----------
+  telemetrie:
+    <<: *service-java
+    build: ./telemetrie-service
+    image: sahticonnect/telemetrie-service
+    ports:
+      - "${TELEMETRIE_PORT:-9090}:9090"
+    environment:
+      <<: *env-java
+      DB_URL: jdbc:postgresql://postgres:5432/telemetrie
+      DB_USER: telemetrie
+      DB_PASSWORD: ${TELEMETRIE_DB_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      # service gRPC pur : grpc_health_probe (dans l'image) appelle grpc.health.v1.Health/Check
+      test: ["CMD", "grpc_health_probe", "-addr=localhost:9090"]
+
+  # ---------- dashboard-medical-service (GraphQL) : interroge telemetrie et dossier-cnam ----------
+  dashboard-medical:
+    <<: *service-java
+    build: ./dashboard-medical-service
+    image: sahticonnect/dashboard-medical-service
+    ports:
+      - "${DASHBOARD_PORT:-8083}:8083"
+    environment:
+      <<: *env-java
+      DB_URL: jdbc:postgresql://postgres:5432/dashboard
+      DB_USER: dashboard
+      DB_PASSWORD: ${DASHBOARD_DB_PASSWORD}
+      TELEMETRIE_ADRESSE: telemetrie:9090
+      CNAM_URL: http://dossier-cnam:8081/ws
+    depends_on:
+      postgres:
+        condition: service_healthy
+      telemetrie:
+        condition: service_healthy
+      dossier-cnam:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "curl", "-fsS", "http://localhost:8083/actuator/health"]
+
+  # ---------- orchestrateur-service : attend que les 4 autres soient prêts ----------
+  orchestrateur:
+    <<: *service-java
+    build: ./orchestrateur-service
+    image: sahticonnect/orchestrateur-service
+    ports:
+      - "${ORCHESTRATEUR_PORT:-8085}:8085"
+    environment:
+      <<: *env-java
+      DB_URL: jdbc:postgresql://postgres:5432/orchestrateur
+      DB_USER: orchestrateur
+      DB_PASSWORD: ${ORCHESTRATEUR_DB_PASSWORD}
+      TELEMETRIE_ADRESSE: telemetrie:9090
+      CNAM_URL: http://dossier-cnam:8081/ws
+      PORTAIL_URL: http://portail-patient:8082
+      DASHBOARD_URL: http://dashboard-medical:8083/graphql
+    depends_on:
+      postgres:
+        condition: service_healthy
+      dossier-cnam:
+        condition: service_healthy
+      portail-patient:
+        condition: service_healthy
+      telemetrie:
+        condition: service_healthy
+      dashboard-medical:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "curl", "-fsS", "http://localhost:8085/actuator/health"]
+
+  # ---------- capteur simulé : profil "capteur", non lancé par docker compose up ----------
+  capteur:
+    build:
+      context: .                                  # le .proto est dans docs/proto
+      dockerfile: capteur-simulator/Dockerfile
+    image: sahticonnect/capteur-simulator
+    profiles: ["capteur"]
+    mem_limit: 128m
+    environment:
+      TZ: Africa/Tunis
+    depends_on:
+      telemetrie:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
