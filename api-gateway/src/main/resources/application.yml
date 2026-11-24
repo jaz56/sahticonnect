@@ -1,0 +1,177 @@
+# Profil par défaut : services sur localhost (lancés avec mvnw spring-boot:run)
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          # ---------- Timeouts : 5 s par défaut (désactivé pour le SSE, cf. route orchestrateur-flux) ----------
+          httpclient:
+            connect-timeout: 2000      # ms
+            response-timeout: 5s       # délai max. entre deux lectures de la réponse du service
+          # ---------- CORS : le client Angular (http://localhost:4200), préflights compris ----------
+          globalcors:
+            add-to-simple-url-handler-mapping: true   # préflight accepté même hors route (ex. /actuator)
+            cors-configurations:
+              '[/**]':
+                allowed-origins: http://localhost:4200
+                allowed-methods: GET, POST, PUT, PATCH, DELETE, OPTIONS
+                allowed-headers: "*"
+                exposed-headers: X-Correlation-Id, Location
+                max-age: 3600
+          # ---------- En-têtes X-Forwarded-* (Host, Port, Proto, Prefix) ajoutés aux requêtes relayées ----------
+          # Depuis la 4.3 (CVE-2025-41235), ils ne sont ajoutés que si le client direct est « de confiance » :
+          # la gateway étant le point d'entrée, on fait confiance aux adresses locales et aux réseaux Docker.
+          # Les X-Forwarded-* envoyés par le client sont d'abord supprimés (default-filters) : impossible de les falsifier.
+          trusted-proxies: 127\.0\.0\.1|0:0:0:0:0:0:0:1|::1|10\..*|172\.(1[6-9]|2[0-9]|3[01])\..*|192\.168\..*
+          default-filters:
+            - RemoveRequestHeader=X-Forwarded-Host
+            - RemoveRequestHeader=X-Forwarded-Port
+            - RemoveRequestHeader=X-Forwarded-Proto
+            - RemoveRequestHeader=X-Forwarded-Prefix
+            - RemoveRequestHeader=X-Forwarded-For
+            - RemoveRequestHeader=Forwarded
+            # si un service ajoutait aussi ses propres en-têtes CORS, on n'en garde qu'un exemplaire
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_FIRST
+          # ---------- Routes : le préfixe /api/<service> est retiré avant de relayer ----------
+          routes:
+            # contrats OpenAPI relus via la gateway (Swagger UI) : « servers » réécrit vers la gateway
+            - id: portail-patient-openapi
+              uri: ${sahti.services.portail-patient}
+              order: -1
+              predicates:
+                - Path=/api/portail/openapi/**
+              filters:
+                - StripPrefix=2
+                - ServeursOpenApi=/api/portail
+            - id: orchestrateur-openapi
+              uri: ${sahti.services.orchestrateur}
+              order: -1
+              predicates:
+                - Path=/api/orchestrateur/openapi/**
+              filters:
+                - StripPrefix=2
+                - ServeursOpenApi=/api/orchestrateur
+
+            - id: portail-patient
+              uri: ${sahti.services.portail-patient}
+              predicates:
+                - Path=/api/portail/**
+              filters:
+                - StripPrefix=2
+                - name: CircuitBreaker
+                  args:
+                    name: portail-patient
+                    fallbackUri: forward:/fallback/portail-patient
+
+            # flux SSE : réponse sans fin, relayée au fil de l'eau (pas de buffering), sans timeout de réponse
+            - id: orchestrateur-flux
+              uri: ${sahti.services.orchestrateur}
+              order: -1
+              predicates:
+                - Path=/api/orchestrateur/workflows/flux
+              metadata:
+                response-timeout: -1
+              filters:
+                - StripPrefix=2
+                - name: CircuitBreaker
+                  args:
+                    name: orchestrateur-flux
+                    fallbackUri: forward:/fallback/orchestrateur
+            - id: orchestrateur
+              uri: ${sahti.services.orchestrateur}
+              predicates:
+                - Path=/api/orchestrateur/**
+              filters:
+                - StripPrefix=2
+                - name: CircuitBreaker
+                  args:
+                    name: orchestrateur
+                    fallbackUri: forward:/fallback/orchestrateur
+
+            # GraphQL : requêtes HTTP ET subscriptions WebSocket (Upgrade: websocket → relais ws://)
+            - id: dashboard-medical
+              uri: ${sahti.services.dashboard-medical}
+              predicates:
+                - Path=/api/graphql
+              filters:
+                - SetPath=/graphql
+                - name: CircuitBreaker
+                  args:
+                    name: dashboard-medical
+                    fallbackUri: forward:/fallback/dashboard-medical
+
+            # SOAP + WSDL : /api/cnam/ws/** → /ws/** (le WSDL annonce l'adresse de la gateway, cf. X-Forwarded-*)
+            - id: dossier-cnam
+              uri: ${sahti.services.dossier-cnam}
+              predicates:
+                - Path=/api/cnam/ws/**
+              filters:
+                - StripPrefix=2
+                - name: CircuitBreaker
+                  args:
+                    name: dossier-cnam
+                    fallbackUri: forward:/fallback/soap/dossier-cnam
+    # Les délais sont gérés par le client HTTP (response-timeout ci-dessus, désactivable par route) :
+    # le TimeLimiter de Resilience4j couperait aussi les flux SSE et les WebSocket
+    circuitbreaker:
+      resilience4j:
+        disable-time-limiter: true
+
+# Adresses des services (profil docker : noms des conteneurs)
+sahti:
+  services:
+    portail-patient: http://localhost:8082
+    orchestrateur: http://localhost:8085
+    dashboard-medical: http://localhost:8083
+    dossier-cnam: http://localhost:8081
+
+# Circuit breaker par route : 50 % d'échecs sur 10 appels (5 minimum) → ouvert 30 s
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 2
+        automatic-transition-from-open-to-half-open-enabled: true
+        # un flux SSE ou une WebSocket dure longtemps par nature : ce n'est pas un « appel lent »
+        slow-call-duration-threshold: 1d
+
+# Swagger UI regroupé : http://localhost:8080/swagger-ui.html, contrats lus VIA la gateway
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  paths-to-exclude: /fallback/**
+  swagger-ui:
+    path: /swagger-ui.html
+    urls-primary-name: portail-patient
+    urls:
+      - name: portail-patient
+        url: /api/portail/openapi/portail-patient.yaml
+      - name: orchestrateur
+        url: /api/orchestrateur/openapi/orchestrateur.yaml
+
+# Actuator : santé (healthcheck Docker) et routes de la gateway (démo)
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, gateway
+  endpoint:
+    health:
+      probes:
+        enabled: true
+    gateway:
+      access: read_only
+
+logging:
+  level:
+    tn.sahticonnect.gateway: INFO

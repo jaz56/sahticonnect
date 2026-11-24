@@ -1,0 +1,7 @@
+# Profil "docker" : services joints par le nom de leur conteneur dans le réseau Compose
+sahti:
+  services:
+    portail-patient: ${PORTAIL_URL:http://portail-patient:8082}
+    orchestrateur: ${ORCHESTRATEUR_URL:http://orchestrateur:8085}
+    dashboard-medical: ${DASHBOARD_URL:http://dashboard-medical:8083}
+    dossier-cnam: ${CNAM_URL:http://dossier-cnam:8081}
