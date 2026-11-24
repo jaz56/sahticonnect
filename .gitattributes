@@ -1,0 +1,3 @@
+# Fichiers exécutés dans des conteneurs Linux : toujours en LF, même dans un clone Windows (core.autocrlf)
+docker/** text eol=lf
+*.sh text eol=lf
