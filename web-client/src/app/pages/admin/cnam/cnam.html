@@ -1,0 +1,240 @@
+<div class="page">
+  <h1>Dossier CNAM</h1>
+  <p class="sous-titre">SOAP 1.1 · POST http://localhost:8080/api/cnam/ws · namespace http://sahticonnect.tn/cnam</p>
+  @if (envoi()) { <mat-progress-bar mode="indeterminate" /> }
+
+  <!-- Fault et XML échangés, communs aux 4 opérations -->
+  <ng-template #echange let-r>
+    @if (r.fault; as f) {
+      <div class="fault" data-testid="soap-fault">
+        <mat-icon>report</mat-icon>
+        <div>
+          <b>SOAP Fault {{ f.faultcode }}</b>@if (f.code) { · <span class="mono">{{ f.code }}</span> }
+          <div>{{ f.faultstring }}</div>
+          @if (f.detail && f.detail !== f.faultstring) { <small>{{ f.detail }}</small> }
+        </div>
+      </div>
+    }
+    <mat-tab-group class="xml" animationDuration="0ms">
+      <mat-tab label="Enveloppe envoyée"><pre class="xml">{{ formaterXml(r.requeteXml) }}</pre></mat-tab>
+      <mat-tab [label]="'Réponse brute (HTTP ' + r.statutHttp + ')'"><pre class="xml">{{ formaterXml(r.reponseXml) || '(vide)' }}</pre></mat-tab>
+    </mat-tab-group>
+  </ng-template>
+
+  <mat-tab-group mat-stretch-tabs="false" animationDuration="0ms">
+    <!-- ===================== verifierDroitsCNAM ===================== -->
+    <mat-tab label="verifierDroitsCNAM">
+      <div class="onglet">
+        <mat-card appearance="outlined">
+          <mat-card-content class="grille">
+            <mat-form-field appearance="outline">
+              <mat-label>Patient</mat-label>
+              <mat-select [(ngModel)]="verifier.patientId" (valueChange)="verifier.vignette = vignetteDe($event)">
+                @for (p of patients; track p.id) { <mat-option [value]="p.id">{{ p.id }} · {{ p.nom }}</mat-option> }
+              </mat-select>
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Code vignette CNAM</mat-label>
+              <input matInput [(ngModel)]="verifier.vignette" data-testid="vignette" />
+              <mat-hint>Mettre la vignette d'un autre patient → Fault VIGNETTE_INVALIDE</mat-hint>
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Lettre-clé</mat-label>
+              <mat-select [(ngModel)]="verifier.lettreCle">
+                @for (l of lettresCles; track l) { <mat-option [value]="l">{{ l }}</mat-option> }
+              </mat-select>
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Coefficient</mat-label>
+              <input matInput type="number" min="0" step="1" [(ngModel)]="verifier.coefficient" />
+            </mat-form-field>
+            <mat-form-field appearance="outline">
+              <mat-label>Libellé</mat-label>
+              <input matInput [(ngModel)]="verifier.libelle" />
+            </mat-form-field>
+          </mat-card-content>
+          <mat-card-actions>
+            <button mat-flat-button (click)="envoyerVerifier()" [disabled]="envoi()" data-testid="envoyer-verifier">
+              <mat-icon>send</mat-icon> Vérifier les droits
+            </button>
+          </mat-card-actions>
+        </mat-card>
+
+        @if (resultatVerifier(); as r) {
+          <mat-card appearance="outlined" class="resultat">
+            @if (r.resultat; as d) {
+              <mat-card-header>
+                <mat-card-title>{{ d.assure.prenom }} {{ d.assure.nom }} · {{ d.assure.matriculeCNAM }}</mat-card-title>
+                <mat-card-subtitle>
+                  Filière {{ d.assure.filiere }} · vignette {{ d.assure.codeVignetteCNAM }} valable jusqu'au
+                  {{ d.assure.dateFinValidite | date: 'dd/MM/yyyy' }}@if (d.assure.apci) { · APCI {{ d.assure.codeAPCI }} }
+                </mat-card-subtitle>
+              </mat-card-header>
+              <mat-card-content>
+                <div class="chiffres" data-testid="resultat-verifier">
+                  <div><span class="libelle">Couverture</span>
+                    <app-pastille [valeur]="d.couverture.couvert ? 'FAIBLE' : 'CRITIQUE'"
+                                  [libelle]="(d.couverture.couvert ? 'Couvert ' : 'Non couvert ') + d.couverture.tauxRemboursement + ' %'" />
+                  </div>
+                  <div><span class="libelle">Motif</span> {{ d.couverture.motif }}</div>
+                  <div><span class="libelle">Montant estimé</span> <span class="valeur-cle">{{ d.montantEstime | dt }}</span></div>
+                  <div><span class="libelle">Part CNAM</span> <span class="valeur-cle">{{ d.partCNAMEstimee | dt }}</span></div>
+                  <div><span class="libelle">Part patient</span> <span class="valeur-cle">{{ d.partPatientEstimee | dt }}</span></div>
+                </div>
+              </mat-card-content>
+            }
+            <mat-card-content><ng-container *ngTemplateOutlet="echange; context: { $implicit: r }" /></mat-card-content>
+          </mat-card>
+        }
+      </div>
+    </mat-tab>
+
+    <!-- ===================== comparerGaranties ===================== -->
+    <mat-tab label="comparerGaranties">
+      <div class="onglet">
+        <mat-card appearance="outlined">
+          <mat-card-content>
+            <mat-form-field appearance="outline">
+              <mat-label>Patient</mat-label>
+              <mat-select [(ngModel)]="comparer.patientId">
+                @for (p of patients; track p.id) { <mat-option [value]="p.id">{{ p.id }} · {{ p.nom }}</mat-option> }
+              </mat-select>
+            </mat-form-field>
+            <div class="deux">
+              <fieldset>
+                <legend>Offre A</legend>
+                <mat-form-field appearance="outline"><mat-label>Libellé</mat-label><input matInput [(ngModel)]="comparer.libelleA" /></mat-form-field>
+                <mat-form-field appearance="outline"><mat-label>Filière</mat-label>
+                  <mat-select [(ngModel)]="comparer.filiereA">@for (f of filieres; track f) { <mat-option [value]="f">{{ f }}</mat-option> }</mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline"><mat-label>Actes</mat-label><input matInput [(ngModel)]="comparer.actesA" /><mat-hint>ex. C 1 + B 20</mat-hint></mat-form-field>
+              </fieldset>
+              <fieldset>
+                <legend>Offre B</legend>
+                <mat-form-field appearance="outline"><mat-label>Libellé</mat-label><input matInput [(ngModel)]="comparer.libelleB" /></mat-form-field>
+                <mat-form-field appearance="outline"><mat-label>Filière</mat-label>
+                  <mat-select [(ngModel)]="comparer.filiereB">@for (f of filieres; track f) { <mat-option [value]="f">{{ f }}</mat-option> }</mat-select>
+                </mat-form-field>
+                <mat-form-field appearance="outline"><mat-label>Actes</mat-label><input matInput [(ngModel)]="comparer.actesB" /></mat-form-field>
+              </fieldset>
+            </div>
+          </mat-card-content>
+          <mat-card-actions>
+            <button mat-flat-button (click)="envoyerComparer()" [disabled]="envoi()"><mat-icon>compare_arrows</mat-icon> Comparer</button>
+          </mat-card-actions>
+        </mat-card>
+
+        @if (resultatComparer(); as r) {
+          <mat-card appearance="outlined" class="resultat">
+            @if (r.resultat; as d) {
+              <mat-card-header>
+                <mat-card-title>Recommandation : {{ d.recommandation }}</mat-card-title>
+                <mat-card-subtitle>Différence de part patient : {{ d.differencePartPatient | dt }}</mat-card-subtitle>
+              </mat-card-header>
+              <mat-card-content>
+                <table class="comparaison">
+                  <tr><th></th><th>{{ d.resultatA.libelle }}</th><th>{{ d.resultatB.libelle }}</th></tr>
+                  <tr><td>Montant total</td><td>{{ d.resultatA.montantTotal | dt }}</td><td>{{ d.resultatB.montantTotal | dt }}</td></tr>
+                  <tr><td>Taux appliqué</td><td>{{ d.resultatA.tauxApplique }} %</td><td>{{ d.resultatB.tauxApplique }} %</td></tr>
+                  <tr><td>Part CNAM</td><td>{{ d.resultatA.partCNAM | dt }}</td><td>{{ d.resultatB.partCNAM | dt }}</td></tr>
+                  <tr><td>Part patient</td><td><b>{{ d.resultatA.partPatient | dt }}</b></td><td><b>{{ d.resultatB.partPatient | dt }}</b></td></tr>
+                </table>
+              </mat-card-content>
+            }
+            <mat-card-content><ng-container *ngTemplateOutlet="echange; context: { $implicit: r }" /></mat-card-content>
+          </mat-card>
+        }
+      </div>
+    </mat-tab>
+
+    <!-- ===================== consulterHistorique ===================== -->
+    <mat-tab label="consulterHistorique">
+      <div class="onglet">
+        <mat-card appearance="outlined">
+          <mat-card-content class="grille">
+            <mat-form-field appearance="outline">
+              <mat-label>Patient</mat-label>
+              <mat-select [(ngModel)]="historique.patientId">
+                @for (p of patients; track p.id) { <mat-option [value]="p.id">{{ p.id }} · {{ p.nom }}</mat-option> }
+              </mat-select>
+            </mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Du (facultatif)</mat-label><input matInput type="date" [(ngModel)]="historique.dateDebut" /></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Au (facultatif)</mat-label><input matInput type="date" [(ngModel)]="historique.dateFin" /></mat-form-field>
+          </mat-card-content>
+          <mat-card-actions>
+            <button mat-flat-button (click)="envoyerHistorique()" [disabled]="envoi()"><mat-icon>history</mat-icon> Consulter</button>
+          </mat-card-actions>
+        </mat-card>
+
+        @if (resultatHistorique(); as r) {
+          <mat-card appearance="outlined" class="resultat">
+            @if (r.resultat; as d) {
+              <mat-card-header>
+                <mat-card-title>{{ d.assure.prenom }} {{ d.assure.nom }} · {{ d.entrees.length }} entrée(s)</mat-card-title>
+              </mat-card-header>
+              <mat-card-content>
+                <table class="comparaison">
+                  <tr><th>Date</th><th>Établissement</th><th>Diagnostic</th><th>Actes</th><th>Feuille</th></tr>
+                  @for (e of d.entrees; track $index) {
+                    <tr>
+                      <td>{{ e.date | date: 'dd/MM/yyyy' }}</td><td>{{ e.etablissement }}</td><td>{{ e.diagnostic }}</td>
+                      <td class="mono">{{ actes(e.actes) }}</td><td class="mono">{{ e.numeroFeuilleSoins }}</td>
+                    </tr>
+                  }
+                </table>
+              </mat-card-content>
+            }
+            <mat-card-content><ng-container *ngTemplateOutlet="echange; context: { $implicit: r }" /></mat-card-content>
+          </mat-card>
+        }
+      </div>
+    </mat-tab>
+
+    <!-- ===================== emettreFeuilleDeSoins ===================== -->
+    <mat-tab label="emettreFeuilleDeSoins">
+      <div class="onglet">
+        <mat-card appearance="outlined">
+          <mat-card-content class="grille">
+            <mat-form-field appearance="outline">
+              <mat-label>Patient</mat-label>
+              <mat-select [(ngModel)]="emettre.patientId" (valueChange)="emettre.vignette = vignetteDe($event)">
+                @for (p of patients; track p.id) { <mat-option [value]="p.id">{{ p.id }} · {{ p.nom }}</mat-option> }
+              </mat-select>
+            </mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Code vignette CNAM</mat-label><input matInput [(ngModel)]="emettre.vignette" /></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Date des soins</mat-label><input matInput type="date" [(ngModel)]="emettre.dateSoins" /></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Établissement</mat-label><input matInput [(ngModel)]="emettre.etablissement" /></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Médecin</mat-label><input matInput [(ngModel)]="emettre.medecin" /></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Actes</mat-label><input matInput [(ngModel)]="emettre.actes" /><mat-hint>ex. V 1 + K 30</mat-hint></mat-form-field>
+            <mat-form-field appearance="outline"><mat-label>Référence intervention (facultatif)</mat-label><input matInput [(ngModel)]="emettre.referenceIntervention" placeholder="INT-2026-000001" /></mat-form-field>
+          </mat-card-content>
+          <mat-card-actions>
+            <button mat-flat-button (click)="envoyerEmettre()" [disabled]="envoi()"><mat-icon>receipt_long</mat-icon> Émettre la feuille</button>
+          </mat-card-actions>
+        </mat-card>
+
+        @if (resultatEmettre(); as r) {
+          <mat-card appearance="outlined" class="resultat">
+            @if (r.resultat; as f) {
+              <mat-card-header>
+                <mat-card-title>Feuille {{ f.numero }} <app-pastille [valeur]="f.statut === 'CERTIFIEE' ? 'FAIBLE' : 'ELEVEE'" [libelle]="f.statut" /></mat-card-title>
+                <mat-card-subtitle>{{ f.dateSoins | date: 'dd/MM/yyyy' }} · {{ f.etablissement }} · {{ f.medecin }}</mat-card-subtitle>
+              </mat-card-header>
+              <mat-card-content>
+                <table class="comparaison">
+                  @for (l of f.lignes; track $index) {
+                    <tr><td class="mono">{{ l.acte.lettreCle }} {{ l.acte.coefficient }}</td><td>{{ l.acte.libelle }}</td><td>{{ l.montant | dt }}</td></tr>
+                  }
+                  <tr><td colspan="2"><b>Total</b> (taux {{ f.tauxApplique }} %)</td><td><b>{{ f.montantTotal | dt }}</b></td></tr>
+                  <tr><td colspan="2">Part CNAM / part patient</td><td>{{ f.partCNAM | dt }} / {{ f.partPatient | dt }}</td></tr>
+                </table>
+                <p class="mono certification">Certification : {{ f.codeCertification }}</p>
+              </mat-card-content>
+            }
+            <mat-card-content><ng-container *ngTemplateOutlet="echange; context: { $implicit: r }" /></mat-card-content>
+          </mat-card>
+        }
+      </div>
+    </mat-tab>
+  </mat-tab-group>
+</div>

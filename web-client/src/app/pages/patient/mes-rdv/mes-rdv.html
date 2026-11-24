@@ -1,0 +1,72 @@
+<div class="page">
+  <h1>Mes rendez-vous</h1>
+  <p class="sous-titre">GET /rendez-vous?patientId={{ session.patientId() }} · PUT et DELETE /rendez-vous/&#123;id&#125; · REST</p>
+  @if (chargement()) { <mat-progress-bar mode="indeterminate" /> }
+
+  <mat-card class="carte" appearance="outlined">
+    @if (rendezVous().length === 0 && !chargement()) {
+      <p class="vide">Aucun rendez-vous.</p>
+    } @else {
+      <table mat-table [dataSource]="rendezVous()" class="tableau" data-testid="liste-rdv">
+        <ng-container matColumnDef="debut">
+          <th mat-header-cell *matHeaderCellDef>Date</th>
+          <td mat-cell *matCellDef="let r">{{ r.debut | date }}</td>
+        </ng-container>
+        <ng-container matColumnDef="medecin">
+          <th mat-header-cell *matHeaderCellDef>Médecin</th>
+          <td mat-cell *matCellDef="let r">{{ nomsMedecins().get(r.medecinId) ?? r.medecinId }}</td>
+        </ng-container>
+        <ng-container matColumnDef="type">
+          <th mat-header-cell *matHeaderCellDef>Type</th>
+          <td mat-cell *matCellDef="let r">{{ r.type }}</td>
+        </ng-container>
+        <ng-container matColumnDef="statut">
+          <th mat-header-cell *matHeaderCellDef>Statut</th>
+          <td mat-cell *matCellDef="let r"><app-pastille [valeur]="r.statut" [libelle]="r.statut" /></td>
+        </ng-container>
+        <ng-container matColumnDef="motif">
+          <th mat-header-cell *matHeaderCellDef>Motif</th>
+          <td mat-cell *matCellDef="let r">{{ r.motif }} <span class="mono">{{ r.id }}</span></td>
+        </ng-container>
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef></th>
+          <td mat-cell *matCellDef="let r" class="actions">
+            @if (modifiable(r)) {
+              <button mat-button (click)="commencerDeplacement(r)"><mat-icon>schedule</mat-icon> Déplacer</button>
+              <button mat-button (click)="annuler(r)" data-testid="annuler-rdv"><mat-icon>event_busy</mat-icon> Annuler</button>
+            }
+          </td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="colonnes"></tr>
+        <tr mat-row *matRowDef="let r; columns: colonnes" [attr.data-rdv]="r.id"></tr>
+      </table>
+    }
+  </mat-card>
+
+  @if (aDeplacer(); as rdv) {
+    <mat-card class="carte deplacement" appearance="outlined">
+      <mat-card-header>
+        <mat-card-title>Déplacer {{ rdv.id }}</mat-card-title>
+        <mat-card-subtitle>Actuellement le {{ rdv.debut | date }} · créneaux du même médecin, même type</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <mat-form-field appearance="outline">
+          <mat-label>Nouvelle date</mat-label>
+          <input matInput [matDatepicker]="cal" [min]="aujourdhui" [value]="dateDeplacement()"
+                 (dateChange)="chercherCreneaux($event.value)" />
+          <mat-datepicker-toggle matIconSuffix [for]="cal" />
+          <mat-datepicker #cal />
+        </mat-form-field>
+        @if (creneaux(); as liste) {
+          @if (liste.length === 0) { <p class="vide">Aucun créneau libre ce jour-là.</p> }
+          <mat-chip-set>
+            @for (c of liste; track c.id) {
+              <mat-chip (click)="deplacer(c)">{{ c.debut | date: 'HH:mm' }}</mat-chip>
+            }
+          </mat-chip-set>
+        }
+      </mat-card-content>
+      <mat-card-actions><button mat-button (click)="aDeplacer.set(null)">Fermer</button></mat-card-actions>
+    </mat-card>
+  }
+</div>

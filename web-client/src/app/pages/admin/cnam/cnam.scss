@@ -1,0 +1,70 @@
+.onglet {
+  padding: 16px 0;
+}
+
+.resultat {
+  margin-top: 16px;
+}
+
+.deux {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+
+  fieldset {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--mat-sys-outline-variant);
+    border-radius: 12px;
+    padding: 8px 16px;
+  }
+}
+
+.chiffres {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.libelle {
+  display: block;
+  font: var(--mat-sys-label-medium);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+table.comparaison {
+  border-collapse: collapse;
+  width: 100%;
+
+  th,
+  td {
+    text-align: left;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--mat-sys-outline-variant);
+  }
+}
+
+.fault {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+  margin: 8px 0;
+  border-radius: 10px;
+  color: var(--sahti-critique);
+  background: var(--sahti-critique-fond);
+}
+
+.xml {
+  margin-top: 8px;
+}
+
+.certification {
+  word-break: break-all;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+@media (max-width: 900px) {
+  .deux {
+    grid-template-columns: 1fr;
+  }
+}

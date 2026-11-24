@@ -1,0 +1,55 @@
+.flux {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  color: var(--sahti-elevee);
+
+  &.ok {
+    color: var(--sahti-faible);
+  }
+
+  mat-icon {
+    font-size: 18px;
+    height: 18px;
+    width: 18px;
+  }
+}
+
+.filtres {
+  margin-bottom: 12px;
+}
+
+.disposition {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(0, 3fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.liste {
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.etat.FACTUREE { color: var(--sahti-faible); }
+.etat.ECHEC { color: var(--sahti-critique); }
+
+.resume {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px 16px;
+  margin-top: 16px;
+}
+
+.libelle {
+  display: block;
+  font: var(--mat-sys-label-medium);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+@media (max-width: 900px) {
+  .disposition {
+    grid-template-columns: 1fr;
+  }
+}

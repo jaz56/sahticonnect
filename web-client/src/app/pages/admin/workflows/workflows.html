@@ -1,0 +1,82 @@
+<div class="page">
+  <h1>Workflows d'alerte</h1>
+  <p class="sous-titre">
+    GET /api/orchestrateur/workflows · flux SSE /workflows/flux
+    <span class="flux" [class.ok]="flux.connecte()" data-testid="etat-flux">
+      <mat-icon>{{ flux.connecte() ? 'sensors' : 'sensors_off' }}</mat-icon>
+      {{ flux.connecte() ? 'flux SSE connecté' : 'flux SSE déconnecté (reconnexion…)' }}
+    </span>
+    @if (dernierEvenement(); as d) { · dernier événement {{ d | date: 'HH:mm:ss' }} }
+  </p>
+
+  <div class="ligne filtres">
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>Patient</mat-label>
+      <mat-select [value]="filtrePatient()" (valueChange)="filtrePatient.set($event)">
+        <mat-option [value]="null">Tous</mat-option>
+        @for (p of patients; track p.id) { <mat-option [value]="p.id">{{ p.id }} · {{ p.nom }}</mat-option> }
+      </mat-select>
+    </mat-form-field>
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>État</mat-label>
+      <mat-select [value]="filtreEtat()" (valueChange)="filtreEtat.set($event)">
+        <mat-option [value]="null">Tous</mat-option>
+        @for (e of etats; track e) { <mat-option [value]="e">{{ e }}</mat-option> }
+      </mat-select>
+    </mat-form-field>
+  </div>
+  @if (chargement()) { <mat-progress-bar mode="indeterminate" /> }
+
+  <div class="disposition">
+    <mat-card appearance="outlined" class="liste">
+      <mat-nav-list data-testid="liste-workflows">
+        @for (w of workflows(); track w.id) {
+          <a mat-list-item (click)="selectionId.set(w.id)" [activated]="w.id === selectionId()" [attr.data-workflow]="w.id"
+             [attr.data-etat]="w.etat">
+            <span matListItemTitle>
+              <span class="mono">{{ w.id }}</span> · {{ w.patientId }}
+            </span>
+            <span matListItemLine>
+              {{ w.niveau }} · {{ w.dateCreation | date: 'dd/MM HH:mm:ss' }} ·
+              <span class="etat" [class]="w.etat">{{ w.enCours ? 'en cours…' : w.etat }}</span>
+            </span>
+          </a>
+        } @empty {
+          <p class="vide">Aucun workflow pour ces filtres.</p>
+        }
+      </mat-nav-list>
+    </mat-card>
+
+    @if (selection(); as wf) {
+      <mat-card appearance="outlined" class="detail" data-testid="detail-workflow" [attr.data-etat]="wf.etat">
+        <mat-card-header>
+          <mat-icon matCardAvatar>account_tree</mat-icon>
+          <mat-card-title>{{ wf.id }} <app-pastille [valeur]="wf.etat" [libelle]="wf.enCours ? 'EN COURS' : wf.etat" /></mat-card-title>
+          <mat-card-subtitle>
+            Alerte <span class="mono">{{ wf.alerteId }}</span> · {{ wf.patientId }} · {{ wf.niveau }}
+            · {{ wf.seuilFranchi }} · créé le {{ wf.dateCreation | date }}
+          </mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <app-frise-workflow [workflow]="wf" />
+
+          <div class="resume">
+            <div><span class="libelle">Couverture</span>
+              {{ wf.couvert === true ? 'couvert ' + wf.tauxRemboursement + ' %' : wf.couvert === false ? 'non couvert' : 'inconnue' }}
+            </div>
+            <div><span class="libelle">Intervention</span> {{ libelleIntervention(wf.typeIntervention) }} <span class="mono">{{ wf.referenceExterne }}</span></div>
+            <div><span class="libelle">Fiche</span> <span class="mono">{{ wf.interventionId ?? '—' }}</span></div>
+            <div><span class="libelle">Feuille de soins</span> <span class="mono">{{ wf.numeroFeuilleSoins ?? '—' }}</span> {{ wf.montantTotal | dt }}</div>
+            <div><span class="libelle">Facturation</span> <app-pastille [valeur]="wf.statutFacturation" /></div>
+            @if (wf.etapeEnEchec) { <div><span class="libelle">Étape en échec</span> {{ libelleEtape(wf.etapeEnEchec) }}</div> }
+          </div>
+        </mat-card-content>
+        @if (wf.etat === 'ECHEC' && !wf.enCours) {
+          <mat-card-actions>
+            <button mat-flat-button (click)="relancer(wf)" data-testid="relancer"><mat-icon>replay</mat-icon> Relancer</button>
+          </mat-card-actions>
+        }
+      </mat-card>
+    }
+  </div>
+</div>

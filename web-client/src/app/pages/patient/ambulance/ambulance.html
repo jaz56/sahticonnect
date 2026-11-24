@@ -1,0 +1,49 @@
+<div class="page">
+  <h1>Suivi ambulance</h1>
+  <p class="sous-titre">GET /urgences/ambulances/&#123;id&#125; toutes les 10 s · REST</p>
+
+  <mat-card class="carte" appearance="outlined">
+    <mat-card-content class="ligne">
+      <mat-form-field appearance="outline">
+        <mat-label>Mission</mat-label>
+        <input matInput [(ngModel)]="identifiant" placeholder="AMB-2026-000001" (keyup.enter)="suivre()" data-testid="id-mission" />
+      </mat-form-field>
+      <button mat-flat-button (click)="suivre()" [disabled]="!identifiant"><mat-icon>search</mat-icon> Suivre</button>
+    </mat-card-content>
+  </mat-card>
+
+  @if (erreur(); as e) {
+    <mat-card class="carte" appearance="outlined">
+      <mat-card-content><b>{{ e.code }}</b> : {{ e.message }}</mat-card-content>
+    </mat-card>
+  }
+
+  @if (suivie(); as m) {
+    <mat-card class="carte" appearance="outlined" data-testid="mission">
+      <mat-card-header>
+        <mat-icon matCardAvatar>ambulance</mat-icon>
+        <mat-card-title>{{ m.id }} · {{ m.vehicule }}</mat-card-title>
+        <mat-card-subtitle>
+          {{ m.identifiantPatient }} · vers {{ m.etablissementDestination }} · délai estimé {{ m.delaiEstimeMinutes }} min
+        </mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        @if (m.statut === 'ANNULEE') {
+          <p class="vide">Mission annulée.</p>
+        } @else {
+          <ol class="etapes">
+            @for (s of etapes; track s) {
+              <li [class.atteinte]="atteinte(s, m.statut)" [class.courante]="s === m.statut">{{ s }}</li>
+            }
+          </ol>
+        }
+        <p>{{ m.motif }}</p>
+        <p class="sous-titre">
+          Demandée le {{ m.dateDemande | date }} · mise à jour {{ m.dateMiseAJour | date: 'HH:mm:ss' }}
+          · rafraîchi à {{ derniereMiseAJour() | date: 'HH:mm:ss' }}
+        </p>
+      </mat-card-content>
+      <mat-progress-bar mode="buffer" [value]="(etapes.indexOf(m.statut) + 1) * 20" />
+    </mat-card>
+  }
+</div>

@@ -1,0 +1,44 @@
+.colonnes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: var(--mat-sys-title-large);
+}
+
+.alerte,
+.intervention {
+  margin-bottom: 10px;
+  animation: apparition 0.4s ease-out;
+}
+
+.alerte.CRITIQUE {
+  border-left: 6px solid var(--sahti-critique);
+  background: var(--sahti-critique-fond);
+}
+
+.alerte.ELEVEE {
+  border-left: 6px solid var(--sahti-elevee);
+  background: var(--sahti-elevee-fond);
+}
+
+.intervention {
+  border-left: 6px solid var(--mat-sys-primary);
+}
+
+@keyframes apparition {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (max-width: 900px) {
+  .colonnes {
+    grid-template-columns: 1fr;
+  }
+}

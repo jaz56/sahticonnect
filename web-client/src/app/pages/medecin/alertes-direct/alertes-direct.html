@@ -1,0 +1,61 @@
+<div class="page">
+  <h1>Alertes en direct</h1>
+  <p class="sous-titre">
+    subscription nouvelleAlerte(niveauMinimum: ELEVEE) et nouvelleIntervention · GraphQL sur WebSocket
+    (ws://localhost:8080/api/graphql), à l'écoute depuis {{ depuis | date: 'HH:mm:ss' }}
+  </p>
+  <mat-slide-toggle [checked]="patientCourantSeulement()" (change)="patientCourantSeulement.set($event.checked)">
+    Seulement {{ session.patientId() }} ({{ session.patient().nom }})
+  </mat-slide-toggle>
+
+  <div class="colonnes">
+    <section>
+      <h2><mat-icon>notifications_active</mat-icon> Alertes</h2>
+      <div data-testid="alertes-direct">
+        @for (a of alertes(); track a.id) {
+          <mat-card class="alerte" [class]="a.niveau" appearance="outlined" [attr.data-alerte]="a.id" [attr.data-patient]="a.patientId">
+            <mat-card-header>
+              <mat-icon matCardAvatar>{{ a.niveau === 'CRITIQUE' ? 'emergency' : 'warning' }}</mat-icon>
+              <mat-card-title>
+                <app-pastille [valeur]="a.niveau" /> {{ libelleConstante(a.typeConstante) }} {{ a.valeur | number: '1.0-1' }}
+              </mat-card-title>
+              <mat-card-subtitle>
+                <a [routerLink]="['/medecin/patients', a.patientId]">{{ a.patientId }}</a> · {{ a.horodatage | date: 'HH:mm:ss' }}
+                · <span class="mono">{{ a.id }}</span>
+              </mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>{{ a.message ?? a.seuilFranchi }}</mat-card-content>
+          </mat-card>
+        } @empty {
+          <p class="vide">En attente d'alertes… (« Simuler une alerte » sur l'accueil, ou le capteur simulé)</p>
+        }
+      </div>
+    </section>
+
+    <section>
+      <h2><mat-icon>medical_services</mat-icon> Interventions</h2>
+      <div data-testid="interventions-direct">
+        @for (i of interventions(); track i.id) {
+          <mat-card class="intervention" appearance="outlined" [attr.data-intervention]="i.id">
+            <mat-card-header>
+              <mat-icon matCardAvatar>{{ i.type === 'AMBULANCE' ? 'ambulance' : 'event' }}</mat-icon>
+              <mat-card-title>{{ libelleIntervention(i.type) }} · {{ i.patient.prenom }} {{ i.patient.nom }}</mat-card-title>
+              <mat-card-subtitle>{{ i.patient.service }} · <span class="mono">{{ i.id }}</span> · {{ i.dateCreation | date: 'HH:mm:ss' }}</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              <p>{{ i.description }}</p>
+              <div class="ligne">
+                <app-pastille [valeur]="i.etat" [libelle]="i.etat" />
+                <app-pastille [valeur]="i.statutFacturation" />
+                @if (i.referenceExterne) { <span class="mono">{{ i.referenceExterne }}</span> }
+                @if (i.alerte) { <span>alerte <span class="mono">{{ i.alerte.id }}</span></span> }
+              </div>
+            </mat-card-content>
+          </mat-card>
+        } @empty {
+          <p class="vide">Aucune intervention créée depuis l'ouverture de la page.</p>
+        }
+      </div>
+    </section>
+  </div>
+</div>

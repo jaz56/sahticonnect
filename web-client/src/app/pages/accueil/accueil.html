@@ -1,0 +1,97 @@
+<div class="page">
+  <h1>SahtiConnect</h1>
+  <p class="sous-titre">
+    Suivi à distance des patients chroniques : des capteurs envoient les constantes en continu ; au franchissement
+    d'un seuil, une alerte déclenche une intervention (ambulance ou RDV d'urgence), les droits CNAM sont vérifiés et
+    la feuille de soins émise. Le médecin suit tout en direct.
+  </p>
+
+  <div class="haut">
+    <mat-card class="carte schema" appearance="outlined">
+      <mat-card-header>
+        <mat-card-title>Architecture</mat-card-title>
+        <mat-card-subtitle>Un client unique, un point d'entrée unique, un protocole par service</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="archi" aria-label="Schéma d'architecture">
+          <div class="niveau-archi">
+            <div class="boite client"><mat-icon>web</mat-icon><b>Client web</b><small>Angular · :4200</small></div>
+          </div>
+          <div class="fleche">HTTP · WebSocket · SSE</div>
+          <div class="niveau-archi">
+            <div class="boite gateway"><mat-icon>router</mat-icon><b>API Gateway</b><small>Spring Cloud Gateway · :8080</small></div>
+          </div>
+          <div class="fleche">/api/portail · /api/graphql · /api/orchestrateur · /api/cnam/ws</div>
+          <div class="niveau-archi services">
+            <div class="boite rest"><b>portail-patient</b><small>REST · :8082</small></div>
+            <div class="boite graphql"><b>dashboard-medical</b><small>GraphQL · :8083</small></div>
+            <div class="boite orchestrateur"><b>orchestrateur</b><small>REST + SSE · :8085</small></div>
+            <div class="boite soap"><b>dossier-cnam</b><small>SOAP · :8081</small></div>
+          </div>
+          <div class="fleche">gRPC (interne, non exposé au navigateur)</div>
+          <div class="niveau-archi">
+            <div class="boite grpc"><b>telemetrie</b><small>gRPC · :9090 · seuils, alertes</small></div>
+            <div class="boite capteur"><b>capteurs</b><small>Python · streaming gRPC</small></div>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <div class="colonne">
+      <mat-card class="carte" appearance="outlined" data-testid="etat-gateway">
+        <mat-card-header>
+          <mat-icon matCardAvatar>monitor_heart</mat-icon>
+          <mat-card-title>État de la gateway</mat-card-title>
+          <mat-card-subtitle class="mono">{{ gatewayUrl }}/actuator/health</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          @switch (etatGateway()) {
+            @case ('VERIFICATION') { <mat-spinner diameter="24" /> }
+            @case ('UP') { <app-pastille valeur="FAIBLE" libelle="UP : la gateway répond" /> }
+            @case ('DOWN') { <app-pastille valeur="ELEVEE" libelle="DOWN" /> }
+            @default { <app-pastille valeur="CRITIQUE" libelle="Injoignable (docker compose up ?)" /> }
+          }
+          <div class="composants">
+            @for (c of composants() | keyvalue; track c.key) {
+              <span class="mono">{{ c.key }} : {{ c.value }}</span>
+            }
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="carte" appearance="outlined">
+        <mat-card-header>
+          <mat-icon matCardAvatar>emergency</mat-icon>
+          <mat-card-title>Simuler une alerte</mat-card-title>
+          <mat-card-subtitle>POST /api/orchestrateur/workflows/declencher</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <mat-form-field appearance="outline" class="plein">
+            <mat-label>Patient</mat-label>
+            <mat-select [(ngModel)]="patientAlerte" data-testid="alerte-patient">
+              @for (p of patients; track p.id) {
+                <mat-option [value]="p.id">{{ p.id }} · {{ p.nom }} ({{ p.couverture }})</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+          <mat-button-toggle-group [(ngModel)]="niveauAlerte" aria-label="Niveau" class="niveaux">
+            <mat-button-toggle value="CRITIQUE" data-testid="niveau-critique">CRITIQUE · FC 142 → ambulance</mat-button-toggle>
+            <mat-button-toggle value="ELEVEE" data-testid="niveau-elevee">ÉLEVÉE · FC 118 → RDV d'urgence</mat-button-toggle>
+          </mat-button-toggle-group>
+        </mat-card-content>
+        <mat-card-actions>
+          <button mat-flat-button (click)="simulerAlerte()" [disabled]="envoi()" data-testid="simuler-alerte">
+            <mat-icon>bolt</mat-icon> Simuler une alerte
+          </button>
+        </mat-card-actions>
+        @if (workflowCree(); as wf) {
+          <mat-card-footer class="resultat" data-testid="workflow-cree">
+            Workflow <b class="mono">{{ wf.id }}</b> créé pour l'alerte <span class="mono">{{ wf.alerteId }}</span>.
+            <a routerLink="/admin/workflows" [queryParams]="{ id: wf.id }" (click)="session.role.set('admin')">Suivre le workflow</a>
+            · <a routerLink="/medecin/alertes" (click)="session.role.set('medecin')">Alertes en direct</a>
+          </mat-card-footer>
+        }
+      </mat-card>
+    </div>
+  </div>
+</div>
