@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="http://sahticonnect.tn/cnam"
+           targetNamespace="http://sahticonnect.tn/cnam"
+           elementFormDefault="qualified">
+
+    <!-- ===================== TYPES SIMPLES ===================== -->
+
+    <!-- Identifiant unique patient commun à tous les services : PAT-0001 -->
+    <xs:simpleType name="IdentifiantPatient">
+        <xs:restriction base="xs:string">
+            <xs:pattern value="PAT-\d{4}"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <!-- Code vignette CNAM (fictif) : VG-2026-000123 -->
+    <xs:simpleType name="CodeVignetteCNAM">
+        <xs:restriction base="xs:string">
+            <xs:pattern value="VG-\d{4}-\d{6}"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="Filiere">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="PUBLIQUE"/>
+            <xs:enumeration value="PRIVEE"/>
+            <xs:enumeration value="REMBOURSEMENT"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <!-- Lettres-clés inspirées de la NGAP -->
+    <xs:simpleType name="LettreCle">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="C"/>   <!-- consultation généraliste -->
+            <xs:enumeration value="CS"/>  <!-- consultation spécialiste -->
+            <xs:enumeration value="V"/>   <!-- visite à domicile -->
+            <xs:enumeration value="K"/>   <!-- acte technique -->
+            <xs:enumeration value="B"/>   <!-- biologie -->
+            <xs:enumeration value="Z"/>   <!-- radiologie -->
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="StatutFeuille">
+        <xs:restriction base="xs:string">
+            <xs:enumeration value="EMISE"/>
+            <xs:enumeration value="CERTIFIEE"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <!-- Montant en dinars tunisiens (3 décimales = millimes) -->
+    <xs:simpleType name="MontantDT">
+        <xs:restriction base="xs:decimal">
+            <xs:fractionDigits value="3"/>
+            <xs:minInclusive value="0"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:simpleType name="Taux">
+        <xs:restriction base="xs:int">
+            <xs:minInclusive value="0"/>
+            <xs:maxInclusive value="100"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <!-- ===================== TYPES COMPLEXES ===================== -->
+
+    <!-- Acte coté : ex. lettreCle=K coefficient=20 -> "K 20" -->
+    <xs:complexType name="ActeCote">
+        <xs:sequence>
+            <xs:element name="lettreCle" type="tns:LettreCle"/>
+            <xs:element name="coefficient" type="xs:decimal"/>
+            <xs:element name="libelle" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="LigneActe">
+        <xs:sequence>
+            <xs:element name="acte" type="tns:ActeCote"/>
+            <xs:element name="montant" type="tns:MontantDT"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="Assure">
+        <xs:sequence>
+            <xs:element name="identifiantPatient" type="tns:IdentifiantPatient"/>
+            <xs:element name="nom" type="xs:string"/>
+            <xs:element name="prenom" type="xs:string"/>
+            <xs:element name="dateNaissance" type="xs:date"/>
+            <xs:element name="matriculeCNAM" type="xs:string"/>
+            <xs:element name="codeVignetteCNAM" type="tns:CodeVignetteCNAM"/>
+            <xs:element name="filiere" type="tns:Filiere"/>
+            <xs:element name="dateFinValidite" type="xs:date"/>
+            <xs:element name="apci" type="xs:boolean"/>
+            <xs:element name="codeAPCI" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="Couverture">
+        <xs:sequence>
+            <xs:element name="couvert" type="xs:boolean"/>
+            <xs:element name="tauxRemboursement" type="tns:Taux"/>
+            <xs:element name="motif" type="xs:string" minOccurs="0"/> <!-- ex. "Vignette expirée", "APCI 100%" -->
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="FeuilleDeSoins">
+        <xs:sequence>
+            <xs:element name="numero" type="xs:string"/>               <!-- FS-2026-000001 -->
+            <xs:element name="identifiantPatient" type="tns:IdentifiantPatient"/>
+            <xs:element name="dateSoins" type="xs:date"/>
+            <xs:element name="etablissement" type="xs:string"/>
+            <xs:element name="medecin" type="xs:string"/>
+            <xs:element name="lignes" type="tns:LigneActe" maxOccurs="unbounded"/>
+            <xs:element name="montantTotal" type="tns:MontantDT"/>
+            <xs:element name="tauxApplique" type="tns:Taux"/>
+            <xs:element name="partCNAM" type="tns:MontantDT"/>
+            <xs:element name="partPatient" type="tns:MontantDT"/>
+            <xs:element name="statut" type="tns:StatutFeuille"/>
+            <xs:element name="codeCertification" type="xs:string"/>   <!-- empreinte SHA-256 simulée -->
+            <xs:element name="referenceIntervention" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="EntreeHistorique">
+        <xs:sequence>
+            <xs:element name="date" type="xs:date"/>
+            <xs:element name="etablissement" type="xs:string"/>
+            <xs:element name="diagnostic" type="xs:string"/>
+            <xs:element name="actes" type="tns:ActeCote" maxOccurs="unbounded"/>
+            <xs:element name="numeroFeuilleSoins" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="PriseEnCharge">
+        <xs:sequence>
+            <xs:element name="libelle" type="xs:string"/>              <!-- ex. "Hôpital public" -->
+            <xs:element name="filiere" type="tns:Filiere"/>
+            <xs:element name="actes" type="tns:ActeCote" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="GarantieCalculee">
+        <xs:sequence>
+            <xs:element name="libelle" type="xs:string"/>
+            <xs:element name="montantTotal" type="tns:MontantDT"/>
+            <xs:element name="tauxApplique" type="tns:Taux"/>
+            <xs:element name="partCNAM" type="tns:MontantDT"/>
+            <xs:element name="partPatient" type="tns:MontantDT"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <!-- Détail d'une SOAP Fault : code stable (PATIENT_INCONNU, VIGNETTE_INVALIDE, ACTE_INVALIDE) + message -->
+    <xs:complexType name="ErreurCnam">
+        <xs:sequence>
+            <xs:element name="code" type="xs:string"/>
+            <xs:element name="message" type="xs:string"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <!-- ===================== OPÉRATION 1 : verifierDroitsCNAM ===================== -->
+
+    <xs:element name="verifierDroitsCNAMRequest">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="identifiantPatient" type="tns:IdentifiantPatient"/>
+                <xs:element name="codeVignetteCNAM" type="tns:CodeVignetteCNAM"/>
+                <xs:element name="acte" type="tns:ActeCote"/>
+                <xs:element name="dateActe" type="xs:date" minOccurs="0"/> <!-- défaut : aujourd'hui -->
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="verifierDroitsCNAMResponse">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="assure" type="tns:Assure"/>
+                <xs:element name="couverture" type="tns:Couverture"/>
+                <xs:element name="montantEstime" type="tns:MontantDT"/>
+                <xs:element name="partCNAMEstimee" type="tns:MontantDT"/>
+                <xs:element name="partPatientEstimee" type="tns:MontantDT"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="verifierDroitsCNAMFault" type="tns:ErreurCnam"/>
+
+    <!-- ===================== OPÉRATION 2 : emettreFeuilleDeSoins ===================== -->
+
+    <xs:element name="emettreFeuilleDeSoinsRequest">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="identifiantPatient" type="tns:IdentifiantPatient"/>
+                <xs:element name="codeVignetteCNAM" type="tns:CodeVignetteCNAM"/>
+                <xs:element name="dateSoins" type="xs:date"/>
+                <xs:element name="etablissement" type="xs:string"/>
+                <xs:element name="medecin" type="xs:string"/>
+                <xs:element name="actes" type="tns:ActeCote" maxOccurs="unbounded"/>
+                <xs:element name="referenceIntervention" type="xs:string" minOccurs="0"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="emettreFeuilleDeSoinsResponse">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="feuilleDeSoins" type="tns:FeuilleDeSoins"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="emettreFeuilleDeSoinsFault" type="tns:ErreurCnam"/>
+
+    <!-- ===================== OPÉRATION 3 : consulterHistorique ===================== -->
+
+    <xs:element name="consulterHistoriqueRequest">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="identifiantPatient" type="tns:IdentifiantPatient"/>
+                <xs:element name="dateDebut" type="xs:date" minOccurs="0"/>
+                <xs:element name="dateFin" type="xs:date" minOccurs="0"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="consulterHistoriqueResponse">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="assure" type="tns:Assure"/>
+                <xs:element name="entrees" type="tns:EntreeHistorique" minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="consulterHistoriqueFault" type="tns:ErreurCnam"/>
+
+    <!-- ===================== OPÉRATION 4 : comparerGaranties ===================== -->
+
+    <xs:element name="comparerGarantiesRequest">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="identifiantPatient" type="tns:IdentifiantPatient"/>
+                <xs:element name="priseEnChargeA" type="tns:PriseEnCharge"/>
+                <xs:element name="priseEnChargeB" type="tns:PriseEnCharge"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="comparerGarantiesResponse">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="resultatA" type="tns:GarantieCalculee"/>
+                <xs:element name="resultatB" type="tns:GarantieCalculee"/>
+                <xs:element name="differencePartPatient" type="tns:MontantDT"/>
+                <xs:element name="recommandation" type="xs:string"/> <!-- libellé le moins coûteux pour le patient -->
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="comparerGarantiesFault" type="tns:ErreurCnam"/>
+
+</xs:schema>

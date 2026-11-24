@@ -1,0 +1,112 @@
+# Profil par défaut : H2 en mémoire + console H2 (http://localhost:8085/h2-console)
+server:
+  port: 8085
+  servlet:
+    encoding:
+      force-response: true   # charset=UTF-8 annoncé (accents corrects pour PowerShell 5.1)
+
+spring:
+  application:
+    name: orchestrateur-service
+  datasource:
+    url: jdbc:h2:mem:orchestrateur;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+  web:
+    locale: fr_FR
+    locale-resolver: fixed
+  jackson:
+    default-property-inclusion: non_null
+  mvc:
+    async:
+      request-timeout: -1      # flux SSE : pas de délai côté serveur
+  grpc:
+    client:
+      channels:
+        telemetrie:
+          address: ${sahti.telemetrie.adresse}   # canal nommé utilisé pour SouscrireAlertes
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    url: /openapi/orchestrateur.yaml
+
+# Identifiant du workflow dans chaque ligne de log (MDC)
+logging:
+  pattern:
+    level: "%5p [%X{workflow:-}]"
+
+# Services appelés par l'orchestrateur
+sahti:
+  fuseau-horaire: Africa/Tunis
+  timeout: 3s                                  # délai de connexion et de lecture de chaque appel
+  telemetrie:
+    adresse: localhost:9090                    # gRPC SouscrireAlertes
+  cnam:
+    url: http://localhost:8081/ws              # SOAP
+  portail:
+    url: http://localhost:8082                 # REST
+  dashboard:
+    url: http://localhost:8083/graphql         # GraphQL
+  alertes:
+    abonnement-actif: true                     # abonnement à SouscrireAlertes au démarrage
+    reconnexion-min: 1s                        # backoff de reconnexion : 1 s, 2 s, 4 s… jusqu'à 30 s
+    reconnexion-max: 30s
+  facturation:
+    etablissement: "SahtiConnect – intervention à domicile"
+    medecin: "Équipe d'intervention SahtiConnect"
+
+# Résilience des clients : retry 3 tentatives (backoff exponentiel), circuit breaker par service
+resilience4j:
+  retry:
+    configs:
+      default:
+        max-attempts: 3
+        wait-duration: 500ms
+        enable-exponential-backoff: true
+        exponential-backoff-multiplier: 2
+        ignore-exceptions:
+          - tn.sahticonnect.orchestrateur.client.ErreurMetierException   # 4xx métier, SOAP Fault Client
+    instances:
+      # opérations idempotentes (lectures, enregistrerAlerte, mettreAJourIntervention) :
+      # réessayées sur toute erreur technique
+      appel-idempotent:
+        base-config: default
+        retry-exceptions:
+          - tn.sahticonnect.orchestrateur.client.ServiceIndisponibleException
+      # créations (ambulance, RDV, feuille de soins, intervention) : réessayées seulement si la requête
+      # n'a pas pu partir (connexion impossible) ; un délai de réponse dépassé n'est PAS rejoué
+      # (la création a peut-être eu lieu : la rejouer risquerait un doublon)
+      appel-non-idempotent:
+        base-config: default
+        retry-exceptions:
+          - tn.sahticonnect.orchestrateur.client.ConnexionImpossibleException
+  circuitbreaker:
+    configs:
+      default:
+        sliding-window-type: COUNT_BASED
+        sliding-window-size: 10
+        minimum-number-of-calls: 5
+        failure-rate-threshold: 50
+        wait-duration-in-open-state: 30s
+        permitted-number-of-calls-in-half-open-state: 2
+        automatic-transition-from-open-to-half-open-enabled: true
+        record-exceptions:
+          - tn.sahticonnect.orchestrateur.client.ServiceIndisponibleException
+        ignore-exceptions:
+          - tn.sahticonnect.orchestrateur.client.ErreurMetierException
+    instances:
+      dossier-cnam:
+        base-config: default
+      portail-patient:
+        base-config: default
+      dashboard-medical:
+        base-config: default

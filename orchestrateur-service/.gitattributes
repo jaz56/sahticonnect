@@ -1,0 +1,3 @@
+# Le script mvnw est exécuté sous Linux (image Docker) : fins de ligne LF obligatoires
+mvnw text eol=lf
+*.cmd text eol=crlf

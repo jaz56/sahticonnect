@@ -1,0 +1,479 @@
+openapi: 3.0.3
+info:
+  title: SahtiConnect – Orchestrateur
+  version: 1.0.0
+  description: |
+    API REST du service `orchestrateur-service` (port 8085).
+
+    L'orchestrateur reçoit les alertes de `telemetrie-service` (gRPC SouscrireAlertes) et pilote, pour chacune,
+    le workflow de prise en charge à domicile :
+
+    `ALERTE_RECUE → DROITS_VERIFIES → INTERVENTION_DECLENCHEE → FICHE_PUBLIEE → FACTUREE` (ou `ECHEC`)
+
+    | Étape | Service appelé | Opération |
+    |---|---|---|
+    | ALERTE_RECUE | dashboard-medical (GraphQL) | `enregistrerAlerte` |
+    | DROITS_VERIFIES | dossier-cnam (SOAP) | `consulterHistorique` (vignette) puis `verifierDroitsCNAM` |
+    | INTERVENTION_DECLENCHEE | portail-patient (REST) | CRITIQUE → `POST /urgences/ambulances` ; ELEVEE → `POST /rendez-vous` (URGENCE) |
+    | FICHE_PUBLIEE | dashboard-medical (GraphQL) | `creerIntervention` |
+    | FACTUREE | dossier-cnam (SOAP) + dashboard (GraphQL) | `emettreFeuilleDeSoins` puis `mettreAJourIntervention` |
+
+    Les workflows sont lancés automatiquement à chaque alerte reçue ; ces endpoints servent à les suivre,
+    à les déclencher à la main (démo, tests) et à relancer un workflow en échec.
+
+    Conventions :
+    - identifiant de workflow `WF-AAAA-NNNNNN` ; un seul workflow par alerte (`alerteId` unique) ;
+    - dates au format ISO 8601 (`2026-11-24T09:30:00+01:00`) ;
+    - toutes les erreurs renvoient un objet `Erreur` (même schéma que le portail patient).
+
+    Codes d'erreur métier :
+
+    | HTTP | Code | Cas |
+    |---|---|---|
+    | 400 | `REQUETE_INVALIDE` | Requête non conforme au contrat (détail champ par champ dans `details`) |
+    | 404 | `WORKFLOW_INTROUVABLE` | Workflow inconnu |
+    | 404 | `RESSOURCE_INTROUVABLE` | Adresse (route) inexistante |
+    | 409 | `WORKFLOW_NON_RELANCABLE` | Relance d'un workflow qui n'est pas en ECHEC, ou en cours d'exécution |
+    | 500 | `ERREUR_INTERNE` | Erreur inattendue du service |
+servers:
+  - url: http://localhost:8085
+    description: Accès direct au service (développement)
+tags:
+  - name: Workflows
+    description: Suivi, déclenchement et relance des workflows d'alerte
+
+paths:
+  /workflows:
+    get:
+      tags: [Workflows]
+      operationId: listerWorkflows
+      summary: Lister les workflows (le plus récent en premier)
+      parameters:
+        - name: patientId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/IdentifiantPatient'
+        - name: etat
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/EtatWorkflow'
+      responses:
+        '200':
+          description: Workflows correspondant aux filtres
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Workflow'
+        '400':
+          $ref: '#/components/responses/RequeteInvalide'
+
+  /workflows/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IdentifiantWorkflowPath'
+    get:
+      tags: [Workflows]
+      operationId: consulterWorkflow
+      summary: Détail d'un workflow avec toutes ses étapes
+      responses:
+        '200':
+          description: Workflow trouvé
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+              examples:
+                facture:
+                  $ref: '#/components/examples/WorkflowFacture'
+                echec:
+                  $ref: '#/components/examples/WorkflowEchec'
+        '400':
+          $ref: '#/components/responses/RequeteInvalide'
+        '404':
+          $ref: '#/components/responses/WorkflowIntrouvable'
+
+  /workflows/declencher:
+    post:
+      tags: [Workflows]
+      operationId: declencherWorkflow
+      summary: Déclencher manuellement un workflow à partir d'une alerte (démo, tests)
+      description: |
+        Même traitement qu'une alerte reçue de telemetrie-service : le workflow est créé puis exécuté
+        de façon asynchrone (suivre sa progression avec `GET /workflows/{id}` ou `GET /workflows/flux`).
+        **Idempotent** : si un workflow existe déjà pour cet `alerteId`, il est renvoyé (200) sans en créer
+        un second.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeclenchementAlerte'
+            example:
+              alerteId: ALR-2026-000318
+              patientId: PAT-0001
+              niveau: CRITIQUE
+              typeMesure: FREQUENCE_CARDIAQUE
+              valeur: 142
+              seuilFranchi: FC > 130
+              message: 'Alerte CRITIQUE : fréquence cardiaque 142 bpm (FC > 130)'
+              horodatage: '2026-11-24T09:47:58+01:00'
+      responses:
+        '202':
+          description: Workflow créé, exécution en cours
+          headers:
+            Location:
+              description: URL du workflow créé
+              schema:
+                type: string
+              example: /workflows/WF-2026-000012
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+        '200':
+          description: Un workflow existe déjà pour cette alerte (idempotence) ; il est renvoyé tel quel
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+        '400':
+          $ref: '#/components/responses/RequeteInvalide'
+
+  /workflows/{id}/relancer:
+    parameters:
+      - $ref: '#/components/parameters/IdentifiantWorkflowPath'
+    post:
+      tags: [Workflows]
+      operationId: relancerWorkflow
+      summary: Relancer un workflow en ECHEC à partir de l'étape échouée
+      description: |
+        Les étapes déjà réussies (OK) ne sont pas rejouées : seules les étapes en ECHEC, IGNOREE ou pas encore
+        exécutées le sont. Exécution asynchrone, comme pour le déclenchement.
+      responses:
+        '202':
+          description: Relance acceptée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Workflow'
+        '400':
+          $ref: '#/components/responses/RequeteInvalide'
+        '404':
+          $ref: '#/components/responses/WorkflowIntrouvable'
+        '409':
+          description: Le workflow n'est pas en ECHEC, ou il est en cours d'exécution
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Erreur'
+              example:
+                horodatage: '2026-11-24T10:15:00+01:00'
+                statut: 409
+                code: WORKFLOW_NON_RELANCABLE
+                message: Le workflow WF-2026-000012 est à l'état FACTUREE (seul un workflow en ECHEC peut être relancé)
+                chemin: /workflows/WF-2026-000012/relancer
+
+  /workflows/flux:
+    get:
+      tags: [Workflows]
+      operationId: suivreWorkflows
+      summary: Progression des workflows en direct (Server-Sent Events)
+      description: |
+        Flux `text/event-stream` : à chaque changement d'état d'un workflow (étape terminée, état final),
+        un événement nommé `workflow` est envoyé, dont la donnée (`data:`) est le `Workflow` complet en JSON.
+        Utilisé par le client web ; la connexion reste ouverte.
+
+        ```
+        event: workflow
+        data: {"id":"WF-2026-000012","etat":"DROITS_VERIFIES", … }
+        ```
+      responses:
+        '200':
+          description: Flux d'événements (une donnée = un Workflow au format JSON)
+          content:
+            text/event-stream:
+              schema:
+                type: string
+
+components:
+  # ===================== PARAMÈTRES =====================
+  parameters:
+    IdentifiantWorkflowPath:
+      name: id
+      in: path
+      required: true
+      description: Identifiant du workflow
+      schema:
+        type: string
+        pattern: '^WF-\d{4}-\d{6}$'
+      example: WF-2026-000012
+
+  # ===================== SCHÉMAS =====================
+  schemas:
+    IdentifiantPatient:
+      type: string
+      pattern: '^PAT-\d{4}$'
+      example: PAT-0001
+    NiveauAlerte:
+      type: string
+      enum: [ELEVEE, CRITIQUE]
+    TypeMesure:
+      type: string
+      description: Type de constante (aligné sur TypeMesure du contrat gRPC)
+      enum: [FREQUENCE_CARDIAQUE, SPO2, TENSION_SYSTOLIQUE, TENSION_DIASTOLIQUE, TEMPERATURE, CHUTE]
+    EtatWorkflow:
+      type: string
+      description: Dernière étape réussie, ou ECHEC (voir etapeEnEchec)
+      enum: [ALERTE_RECUE, DROITS_VERIFIES, INTERVENTION_DECLENCHEE, FICHE_PUBLIEE, FACTUREE, ECHEC]
+    NomEtape:
+      type: string
+      enum: [ALERTE_RECUE, DROITS_VERIFIES, INTERVENTION_DECLENCHEE, FICHE_PUBLIEE, FACTUREE]
+    StatutEtape:
+      type: string
+      description: |
+        OK : réussie ; ECHEC : en échec (le workflow peut continuer, voir les règles) ;
+        IGNOREE : non exécutée (ex. FACTUREE quand l'intervention n'a pas été déclenchée)
+      enum: [OK, ECHEC, IGNOREE]
+    StatutFacturation:
+      type: string
+      enum: [EN_ATTENTE, FACTUREE, A_REGULARISER]
+    TypeIntervention:
+      type: string
+      enum: [AMBULANCE, RDV_URGENCE, TELECONSULTATION, VISITE_DOMICILE]
+
+    DeclenchementAlerte:
+      type: object
+      description: Alerte à traiter (mêmes informations que le message gRPC Alerte)
+      required: [alerteId, patientId, niveau, typeMesure, valeur, seuilFranchi, horodatage]
+      properties:
+        alerteId:
+          type: string
+          pattern: '^ALR-\d{4}-\d{6}$'
+          example: ALR-2026-000318
+        patientId:
+          $ref: '#/components/schemas/IdentifiantPatient'
+        niveau:
+          $ref: '#/components/schemas/NiveauAlerte'
+        typeMesure:
+          $ref: '#/components/schemas/TypeMesure'
+        valeur:
+          type: number
+          format: double
+        seuilFranchi:
+          type: string
+          minLength: 1
+          example: FC > 130
+        message:
+          type: string
+        horodatage:
+          type: string
+          format: date-time
+
+    Etape:
+      type: object
+      required: [nom, statut, horodatage, dureeMs, tentative]
+      properties:
+        nom:
+          $ref: '#/components/schemas/NomEtape'
+        statut:
+          $ref: '#/components/schemas/StatutEtape'
+        horodatage:
+          type: string
+          format: date-time
+          description: Fin de l'étape
+        dureeMs:
+          type: integer
+          format: int64
+          minimum: 0
+        tentative:
+          type: integer
+          minimum: 1
+          description: 1 pour l'exécution initiale, 2 pour la première relance…
+        message:
+          type: string
+
+    Workflow:
+      type: object
+      required: [id, alerteId, patientId, niveau, etat, dateCreation, etapes]
+      properties:
+        id:
+          type: string
+          pattern: '^WF-\d{4}-\d{6}$'
+        alerteId:
+          type: string
+        patientId:
+          $ref: '#/components/schemas/IdentifiantPatient'
+        niveau:
+          $ref: '#/components/schemas/NiveauAlerte'
+        typeMesure:
+          $ref: '#/components/schemas/TypeMesure'
+        valeur:
+          type: number
+          format: double
+        seuilFranchi:
+          type: string
+        etat:
+          $ref: '#/components/schemas/EtatWorkflow'
+        etapeEnEchec:
+          $ref: '#/components/schemas/NomEtape'
+        enCours:
+          type: boolean
+          description: Vrai pendant l'exécution (initiale ou relance)
+        couvert:
+          type: boolean
+          description: Droits CNAM ouverts ; absent si la vérification a échoué (couverture inconnue)
+        tauxRemboursement:
+          type: integer
+        statutFacturation:
+          $ref: '#/components/schemas/StatutFacturation'
+        typeIntervention:
+          $ref: '#/components/schemas/TypeIntervention'
+        referenceExterne:
+          type: string
+          description: Ressource REST créée (AMB-… ou RDV-…) ; absente pour une téléconsultation de repli
+        interventionId:
+          type: string
+          description: Intervention publiée sur le dashboard (INT-…)
+        numeroFeuilleSoins:
+          type: string
+        montantTotal:
+          type: number
+          format: double
+        partCNAM:
+          type: number
+          format: double
+        partPatient:
+          type: number
+          format: double
+        dateCreation:
+          type: string
+          format: date-time
+        dateMiseAJour:
+          type: string
+          format: date-time
+        etapes:
+          type: array
+          description: Toutes les étapes exécutées, dans l'ordre (y compris les tentatives de relance)
+          items:
+            $ref: '#/components/schemas/Etape'
+
+    Erreur:
+      type: object
+      required: [horodatage, statut, code, message]
+      properties:
+        horodatage:
+          type: string
+          format: date-time
+        statut:
+          type: integer
+          description: Code HTTP
+        code:
+          type: string
+          description: Code d'erreur métier stable
+        message:
+          type: string
+        chemin:
+          type: string
+        details:
+          type: array
+          description: Erreurs de validation champ par champ (400)
+          items:
+            type: object
+            required: [champ, message]
+            properties:
+              champ:
+                type: string
+              message:
+                type: string
+
+  # ===================== RÉPONSES D'ERREUR =====================
+  responses:
+    RequeteInvalide:
+      description: Requête invalide (paramètre manquant, format incorrect…)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erreur'
+          example:
+            horodatage: '2026-11-24T10:15:00+01:00'
+            statut: 400
+            code: REQUETE_INVALIDE
+            message: La requête contient des champs invalides
+            chemin: /workflows/declencher
+            details:
+              - champ: alerteId
+                message: doit respecter le format ALR-AAAA-NNNNNN
+    WorkflowIntrouvable:
+      description: Workflow inconnu
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erreur'
+          example:
+            horodatage: '2026-11-24T10:15:00+01:00'
+            statut: 404
+            code: WORKFLOW_INTROUVABLE
+            message: Aucun workflow WF-2026-999999
+            chemin: /workflows/WF-2026-999999
+
+  # ===================== EXEMPLES =====================
+  examples:
+    WorkflowFacture:
+      summary: PAT-0001, alerte CRITIQUE, couvert APCI, ambulance, feuille certifiée
+      value:
+        id: WF-2026-000012
+        alerteId: ALR-2026-000318
+        patientId: PAT-0001
+        niveau: CRITIQUE
+        typeMesure: FREQUENCE_CARDIAQUE
+        valeur: 142
+        seuilFranchi: FC > 130
+        etat: FACTUREE
+        enCours: false
+        couvert: true
+        tauxRemboursement: 100
+        statutFacturation: FACTUREE
+        typeIntervention: AMBULANCE
+        referenceExterne: AMB-2026-000007
+        interventionId: INT-2026-000004
+        numeroFeuilleSoins: FS-2026-000003
+        montantTotal: 145.000
+        partCNAM: 145.000
+        partPatient: 0.000
+        dateCreation: '2026-11-24T09:47:58+01:00'
+        dateMiseAJour: '2026-11-24T09:47:59+01:00'
+        etapes:
+          - { nom: ALERTE_RECUE, statut: OK, horodatage: '2026-11-24T09:47:58+01:00', dureeMs: 85, tentative: 1, message: Alerte enregistrée sur le dashboard }
+          - { nom: DROITS_VERIFIES, statut: OK, horodatage: '2026-11-24T09:47:58+01:00', dureeMs: 140, tentative: 1, message: 'Couvert : APCI 100 % (acte V 1)' }
+          - { nom: INTERVENTION_DECLENCHEE, statut: OK, horodatage: '2026-11-24T09:47:59+01:00', dureeMs: 60, tentative: 1, message: 'Ambulance AMB-2026-000007 dépêchée (SAMU-TN-01, 12 min)' }
+          - { nom: FICHE_PUBLIEE, statut: OK, horodatage: '2026-11-24T09:47:59+01:00', dureeMs: 45, tentative: 1, message: Intervention INT-2026-000004 publiée }
+          - { nom: FACTUREE, statut: OK, horodatage: '2026-11-24T09:47:59+01:00', dureeMs: 120, tentative: 1, message: 'Feuille FS-2026-000003 CERTIFIEE : 145,000 DT (CNAM 145,000 / patient 0,000)' }
+    WorkflowEchec:
+      summary: Portail patient indisponible – le médecin est quand même prévenu (fiche publiée)
+      value:
+        id: WF-2026-000013
+        alerteId: ALR-2026-000319
+        patientId: PAT-0003
+        niveau: ELEVEE
+        typeMesure: SPO2
+        valeur: 92
+        seuilFranchi: SpO2 ≤ 94
+        etat: ECHEC
+        etapeEnEchec: INTERVENTION_DECLENCHEE
+        enCours: false
+        couvert: true
+        tauxRemboursement: 80
+        statutFacturation: EN_ATTENTE
+        typeIntervention: RDV_URGENCE
+        interventionId: INT-2026-000005
+        dateCreation: '2026-11-24T10:02:11+01:00'
+        dateMiseAJour: '2026-11-24T10:02:14+01:00'
+        etapes:
+          - { nom: ALERTE_RECUE, statut: OK, horodatage: '2026-11-24T10:02:11+01:00', dureeMs: 70, tentative: 1, message: Alerte enregistrée sur le dashboard }
+          - { nom: DROITS_VERIFIES, statut: OK, horodatage: '2026-11-24T10:02:11+01:00', dureeMs: 130, tentative: 1, message: 'Couvert : Filière publique 80 % (acte CS 1)' }
+          - { nom: INTERVENTION_DECLENCHEE, statut: ECHEC, horodatage: '2026-11-24T10:02:14+01:00', dureeMs: 3020, tentative: 1, message: 'Service portail-patient indisponible : Connection refused' }
+          - { nom: FICHE_PUBLIEE, statut: OK, horodatage: '2026-11-24T10:02:14+01:00', dureeMs: 50, tentative: 1, message: 'Intervention INT-2026-000005 publiée à l''état ECHEC : le médecin est prévenu' }
+          - { nom: FACTUREE, statut: IGNOREE, horodatage: '2026-11-24T10:02:14+01:00', dureeMs: 0, tentative: 1, message: 'Intervention non déclenchée : rien à facturer' }
