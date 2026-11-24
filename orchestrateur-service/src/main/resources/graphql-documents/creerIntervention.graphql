@@ -1,0 +1,8 @@
+# FICHE_PUBLIEE : l'intervention (et la décision prise) est visible par le médecin
+mutation creerIntervention($input: CreerInterventionInput!) {
+  creerIntervention(input: $input) {
+    id
+    etat
+    statutFacturation
+  }
+}

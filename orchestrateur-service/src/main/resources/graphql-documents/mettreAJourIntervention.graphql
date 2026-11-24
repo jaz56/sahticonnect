@@ -1,0 +1,8 @@
+# FACTUREE (et synchronisation après une relance) : feuille de soins, montants, état
+mutation mettreAJourIntervention($id: ID!, $input: MettreAJourInterventionInput!) {
+  mettreAJourIntervention(id: $id, input: $input) {
+    id
+    etat
+    statutFacturation
+  }
+}

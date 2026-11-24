@@ -1,0 +1,7 @@
+# ALERTE_RECUE : l'alerte apparaît tout de suite sur le dashboard (mutation idempotente)
+mutation enregistrerAlerte($input: EnregistrerAlerteInput!) {
+  enregistrerAlerte(input: $input) {
+    id
+    statut
+  }
+}
