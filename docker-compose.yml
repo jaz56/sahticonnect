@@ -1,4 +1,6 @@
-# SahtiConnect : les 5 services + PostgreSQL (une base par service dans un seul conteneur).
+# SahtiConnect : l'API Gateway, les 5 services + PostgreSQL (une base par service dans un seul conteneur).
+# Point d'entrée : http://localhost:8080 (api-gateway). En production, SEUL ce port serait publié : les ports des
+# services (8081…8085, 9090) ne le sont ici que pour le développement et les tests en accès direct.
 #
 #   Copy-Item .env.example .env        # une fois : mots de passe des bases
 #   docker compose up --build -d       # construit et démarre tout
@@ -168,6 +170,34 @@ services:
     healthcheck:
       <<: *healthcheck
       test: ["CMD", "curl", "-fsS", "http://localhost:8085/actuator/health"]
+
+  # ---------- api-gateway : point d'entrée unique (REST, GraphQL HTTP + WebSocket, SOAP, SSE) ----------
+  api-gateway:
+    <<: *service-java
+    build: ./api-gateway
+    image: sahticonnect/api-gateway
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    environment:
+      <<: *env-java
+      PORTAIL_URL: http://portail-patient:8082
+      ORCHESTRATEUR_URL: http://orchestrateur:8085
+      DASHBOARD_URL: http://dashboard-medical:8083
+      CNAM_URL: http://dossier-cnam:8081
+    depends_on:
+      dossier-cnam:
+        condition: service_healthy
+      portail-patient:
+        condition: service_healthy
+      telemetrie:
+        condition: service_healthy
+      dashboard-medical:
+        condition: service_healthy
+      orchestrateur:
+        condition: service_healthy
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
 
   # ---------- capteur simulé : profil "capteur", non lancé par docker compose up ----------
   capteur:
