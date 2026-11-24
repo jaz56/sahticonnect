@@ -165,6 +165,11 @@ management:
     web:
       exposure:
         include: health, gateway
+      # l'accueil du client Angular affiche l'état de la gateway : les endpoints actuator ne passent pas par
+      # globalcors (autre handler mapping), ils ont leur propre configuration CORS
+      cors:
+        allowed-origins: http://localhost:4200
+        allowed-methods: GET
   endpoint:
     health:
       probes:

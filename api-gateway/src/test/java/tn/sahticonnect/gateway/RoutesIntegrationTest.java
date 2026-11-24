@@ -273,6 +273,13 @@ class RoutesIntegrationTest {
     // ===================== Actuator =====================
 
     @Test
+    void actuator_santeLisibleDepuisLeClientAngular() {
+        client.get().uri("/actuator/health").header("Origin", "http://localhost:4200").exchange()
+                .expectStatus().isOk()
+                .expectHeader().valueEquals("Access-Control-Allow-Origin", "http://localhost:4200");
+    }
+
+    @Test
     void actuator_santeEtRoutes() {
         client.get().uri("/actuator/health").exchange().expectStatus().isOk()
                 .expectBody().jsonPath("$.status").isEqualTo("UP");
