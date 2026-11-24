@@ -105,7 +105,7 @@ Sans eux, le dashboard fonctionne, avec des réponses partielles.
 
 - **Profil par défaut** : H2 en mémoire. Console : http://localhost:8083/h2-console (`jdbc:h2:mem:dashboard`, utilisateur `sa`).
 - **Profil `docker`** : PostgreSQL (`DB_URL`, `DB_USER`, `DB_PASSWORD`). Adresses des autres services :
-  `TELEMETRIE_ADRESSE` (défaut `telemetrie-service:9090`) et `CNAM_URL` (défaut `http://dossier-cnam-service:8081/ws`).
+  `TELEMETRIE_ADRESSE` (défaut `telemetrie:9090`) et `CNAM_URL` (défaut `http://dossier-cnam:8081/ws`).
 - **Propriétés** :
   - `sahti.timeout` (3 s) : délai de chaque appel distant ;
   - `sahti.risque.recalcul.actif` (`true`) et `sahti.risque.recalcul.intervalle-ms` (300000) : recalcul périodique.

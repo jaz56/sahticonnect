@@ -1,7 +1,7 @@
 # Profil "docker" : PostgreSQL et adresses des autres services par variables d'environnement
 spring:
   datasource:
-    url: ${DB_URL:jdbc:postgresql://postgres-orchestrateur:5432/orchestrateur}
+    url: ${DB_URL:jdbc:postgresql://postgres:5432/orchestrateur}
     username: ${DB_USER:orchestrateur}
     password: ${DB_PASSWORD:orchestrateur}
     driver-class-name: org.postgresql.Driver
@@ -17,10 +17,10 @@ spring:
 
 sahti:
   telemetrie:
-    adresse: ${TELEMETRIE_ADRESSE:telemetrie-service:9090}
+    adresse: ${TELEMETRIE_ADRESSE:telemetrie:9090}
   cnam:
-    url: ${CNAM_URL:http://dossier-cnam-service:8081/ws}
+    url: ${CNAM_URL:http://dossier-cnam:8081/ws}
   portail:
-    url: ${PORTAIL_URL:http://portail-patient-service:8082}
+    url: ${PORTAIL_URL:http://portail-patient:8082}
   dashboard:
-    url: ${DASHBOARD_URL:http://dashboard-medical-service:8083/graphql}
+    url: ${DASHBOARD_URL:http://dashboard-medical:8083/graphql}

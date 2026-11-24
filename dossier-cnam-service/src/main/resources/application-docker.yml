@@ -1,7 +1,7 @@
 # Profil "docker" : PostgreSQL, paramètres fournis par variables d'environnement
 spring:
   datasource:
-    url: ${DB_URL:jdbc:postgresql://postgres-cnam:5432/cnam}
+    url: ${DB_URL:jdbc:postgresql://postgres:5432/cnam}
     username: ${DB_USER:cnam}
     password: ${DB_PASSWORD:cnam}
     driver-class-name: org.postgresql.Driver

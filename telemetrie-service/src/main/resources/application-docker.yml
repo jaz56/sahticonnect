@@ -1,7 +1,7 @@
 # Profil "docker" : PostgreSQL, paramètres fournis par variables d'environnement
 spring:
   datasource:
-    url: ${DB_URL:jdbc:postgresql://postgres-telemetrie:5432/telemetrie}
+    url: ${DB_URL:jdbc:postgresql://postgres:5432/telemetrie}
     username: ${DB_USER:telemetrie}
     password: ${DB_PASSWORD:telemetrie}
     driver-class-name: org.postgresql.Driver

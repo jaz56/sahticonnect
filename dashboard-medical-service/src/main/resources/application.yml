@@ -48,3 +48,15 @@ sahti:
     adresse: localhost:9090              # gRPC DernieresMesures
   cnam:
     url: http://localhost:8081/ws        # SOAP consulterHistorique / verifierDroitsCNAM
+
+# Healthcheck Docker : GET /actuator/health. Avec les sondes, l'état inclut readinessState : le service n'est
+# « UP » qu'une fois démarré ET les données de test chargées (CommandLineRunner terminés).
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true

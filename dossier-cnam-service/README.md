@@ -83,7 +83,7 @@ cd dossier-cnam-service
 - **Profil par défaut** : H2 en mémoire. Console : http://localhost:8081/h2-console
   (`jdbc:h2:mem:cnam`, utilisateur `sa`, sans mot de passe).
 - **Profil `docker`** : PostgreSQL, configuré par `DB_URL`, `DB_USER` et `DB_PASSWORD`
-  (par défaut `jdbc:postgresql://postgres-cnam:5432/cnam`, `cnam`, `cnam`).
+  (par défaut `jdbc:postgresql://postgres:5432/cnam`, `cnam`, `cnam`).
 
 ```powershell
 docker build -t sahticonnect/dossier-cnam-service .

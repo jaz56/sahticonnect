@@ -75,7 +75,7 @@ cd telemetrie-service
 
 - **Profil par défaut** : H2 en mémoire. Le service n'expose pas de HTTP, donc pas de console H2.
 - **Profil `docker`** : PostgreSQL, configuré par `DB_URL`, `DB_USER` et `DB_PASSWORD`
-  (par défaut `jdbc:postgresql://postgres-telemetrie:5432/telemetrie`, `telemetrie`, `telemetrie`).
+  (par défaut `jdbc:postgresql://postgres:5432/telemetrie`, `telemetrie`, `telemetrie`).
 
 ```powershell
 docker build -t sahticonnect/telemetrie-service .

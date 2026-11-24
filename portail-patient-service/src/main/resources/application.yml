@@ -42,3 +42,15 @@ portail:
     simulation:
       active: true          # fait avancer les missions DEPECHEE → SUR_PLACE → TRANSPORT → TERMINEE
       intervalle-ms: 30000
+
+# Healthcheck Docker : GET /actuator/health. Avec les sondes, l'état inclut readinessState : le service n'est
+# « UP » qu'une fois démarré ET les données de test chargées (CommandLineRunner terminés).
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true

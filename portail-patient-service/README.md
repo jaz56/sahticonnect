@@ -103,7 +103,7 @@ cd portail-patient-service
 
 - **Profil par défaut** : H2 en mémoire. Console : http://localhost:8082/h2-console (`jdbc:h2:mem:portail`, utilisateur `sa`).
 - **Profil `docker`** : PostgreSQL, configuré par `DB_URL`, `DB_USER` et `DB_PASSWORD`
-  (par défaut `jdbc:postgresql://postgres-portail:5432/portail`, `portail`, `portail`).
+  (par défaut `jdbc:postgresql://postgres:5432/portail`, `portail`, `portail`).
 
 ```powershell
 docker build -t sahticonnect/portail-patient-service .
