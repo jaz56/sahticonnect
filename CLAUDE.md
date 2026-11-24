@@ -66,7 +66,13 @@ Une base PostgreSQL par service (database-per-service).
     la diastolique (`TENSION_DIASTOLIQUE` : ÉLEVÉE > 100, CRITIQUE > 120), comme documenté dans
     `docs/proto/telemetrie.proto`.
 - [x] Étape 3 : capteur simulé et détection des seuils
-- [ ] Étape 4 : orchestrateur
+- [x] Étape 4 : orchestrateur
+  - Contrat `docs/openapi/orchestrateur.yaml` (ids `WF-AAAA-NNNNNN`, même schéma `Erreur` que le portail, flux SSE).
+  - Workflow : une file par patient (ordre garanti), patients en parallèle, `alerteId` unique (idempotence).
+    CNAM en panne → étape ECHEC mais on continue (`A_REGULARISER`) ; facturation seulement si l'intervention a réussi ;
+    relance = uniquement les étapes manquantes, feuille de soins jamais réémise.
+  - Résilience4j : timeout 3 s, retry 3 tentatives sur erreur technique seulement (jamais sur 4xx métier ni
+    SOAP Fault Client), créations réessayées uniquement si la connexion a échoué, circuit breaker par service.
 - [ ] Étape 5 : gateway (+ Keycloak en bonus)
 - [ ] Étape 6 : client Angular
 - [ ] Étape 7 : Docker et docker-compose
