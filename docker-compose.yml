@@ -1,4 +1,4 @@
-# SahtiConnect : client web, API Gateway, 5 services + PostgreSQL (une base par service dans un seul conteneur).
+# SahtiConnect : client web, API Gateway, Keycloak, 5 services + PostgreSQL (une base par service dans un seul conteneur).
 # Client web : http://localhost:4200 ; point d'entrée des API : http://localhost:8080 (api-gateway). En production, SEUL ce port serait publié : les ports des
 # services (8081…8085, 9090) ne le sont ici que pour le développement et les tests en accès direct.
 #
@@ -171,6 +171,35 @@ services:
       <<: *healthcheck
       test: ["CMD", "curl", "-fsS", "http://localhost:8085/actuator/health"]
 
+  # ---------- Keycloak : serveur d'identité OIDC (bonus sécurité), realm importé au démarrage ----------
+  # Mode dev (base H2 interne au conteneur) : le realm est réimporté depuis docker/keycloak/ à chaque recréation.
+  # Piège de l'issuer : KC_HOSTNAME fixe l'URL PUBLIQUE (http://localhost:8180) dans tous les jetons, même quand
+  # Keycloak est appelé par une autre adresse (la gateway lit les clés via http://keycloak:8080).
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.8.2
+    command: ["start-dev", "--import-realm"]
+    restart: on-failure
+    mem_limit: 1g
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?définir KEYCLOAK_ADMIN_PASSWORD dans .env (voir .env.example)}
+      KC_HOSTNAME: http://localhost:${KEYCLOAK_PORT:-8180}
+      KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
+      JAVA_OPTS_KC_HEAP: -XX:MaxRAMPercentage=70
+      TZ: Africa/Tunis
+    ports:
+      - "${KEYCLOAK_PORT:-8180}:8080"
+    volumes:
+      - ./docker/keycloak:/opt/keycloak/data/import:ro
+    healthcheck:
+      # l'image n'a ni curl ni wget : requête HTTP en bash sur le port de management (9000)
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && grep -q 'UP' <&3"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+
   # ---------- api-gateway : point d'entrée unique (REST, GraphQL HTTP + WebSocket, SOAP, SSE) ----------
   api-gateway:
     <<: *service-java
@@ -184,6 +213,10 @@ services:
       ORCHESTRATEUR_URL: http://orchestrateur:8085
       DASHBOARD_URL: http://dashboard-medical:8083
       CNAM_URL: http://dossier-cnam:8081
+      # sécurité : issuer PUBLIC validé dans les jetons, clés lues à l'adresse INTERNE de Keycloak
+      SAHTI_SECURITE_ACTIVE: "true"
+      KEYCLOAK_ISSUER: http://localhost:${KEYCLOAK_PORT:-8180}/realms/sahticonnect
+      KEYCLOAK_JWKS: http://keycloak:8080/realms/sahticonnect/protocol/openid-connect/certs
     depends_on:
       dossier-cnam:
         condition: service_healthy
@@ -194,6 +227,8 @@ services:
       dashboard-medical:
         condition: service_healthy
       orchestrateur:
+        condition: service_healthy
+      keycloak:
         condition: service_healthy
     healthcheck:
       <<: *healthcheck
