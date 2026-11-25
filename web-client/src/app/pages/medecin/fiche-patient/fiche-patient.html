@@ -56,9 +56,13 @@
               <mat-button-toggle [value]="t">{{ libellesConstantes[t] }}</mat-button-toggle>
             }
           </mat-button-toggle-group>
-          <div class="graphique">
-            <canvas baseChart type="line" [data]="donneesGraphique()" [options]="optionsGraphique"></canvas>
-          </div>
+          @if (donneesGraphique().datasets[0].data.length > 0) {
+            <div class="graphique">
+              <canvas baseChart type="line" [data]="donneesGraphique()" [options]="optionsGraphique"></canvas>
+            </div>
+          } @else {
+            <p class="vide">Pas encore de mesure de ce type.</p>
+          }
         </mat-card-content>
       </mat-card>
 
@@ -71,15 +75,17 @@
         <mat-card-content>
           @for (a of p.alertes; track a.id) {
             <div class="alerte" [attr.data-alerte]="a.id">
-              <app-pastille [valeur]="a.niveau" />
-              <div class="texte-alerte">
-                <div>{{ a.message ?? a.seuilFranchi }}</div>
-                <small class="mono">{{ a.id }} · {{ a.horodatage | date }}</small>
+              <div class="tete-alerte">
+                <app-pastille [valeur]="a.niveau" />
+                <app-pastille [valeur]="a.statut" />
+                <small class="mono">{{ a.horodatage | date }}</small>
+                <span class="espace"></span>
+                @if (a.statut !== 'RESOLUE') {
+                  <button mat-button (click)="resoudre(a.id)" data-testid="resoudre"><mat-icon>task_alt</mat-icon> Résoudre</button>
+                }
               </div>
-              <app-pastille [valeur]="a.statut" />
-              @if (a.statut !== 'RESOLUE') {
-                <button mat-stroked-button (click)="resoudre(a.id)" data-testid="resoudre"><mat-icon>task_alt</mat-icon> Résoudre</button>
-              }
+              <div>{{ a.message ?? a.seuilFranchi }}</div>
+              <small class="mono">{{ a.id }}</small>
             </div>
           } @empty {
             <p class="vide">Aucune alerte.</p>

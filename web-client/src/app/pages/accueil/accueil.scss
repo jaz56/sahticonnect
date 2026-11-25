@@ -37,7 +37,7 @@
 }
 
 .client { background: var(--mat-sys-primary-container); }
-.gateway { background: var(--mat-sys-tertiary-container); min-width: 300px; }
+.gateway { background: var(--mat-sys-secondary-container); border-color: var(--mat-sys-secondary); min-width: 300px; }
 .rest { border-color: #1565c0; }
 .graphql { border-color: #c2185b; }
 .orchestrateur { border-color: #6a1b9a; }
@@ -65,8 +65,7 @@
 }
 
 .niveaux {
-  display: flex;
-  flex-wrap: wrap;
+  width: 100%;
 }
 
 .resultat {

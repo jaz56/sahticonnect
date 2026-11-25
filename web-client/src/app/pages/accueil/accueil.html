@@ -74,7 +74,7 @@
               }
             </mat-select>
           </mat-form-field>
-          <mat-button-toggle-group [(ngModel)]="niveauAlerte" aria-label="Niveau" class="niveaux">
+          <mat-button-toggle-group [(ngModel)]="niveauAlerte" aria-label="Niveau" class="niveaux" vertical>
             <mat-button-toggle value="CRITIQUE" data-testid="niveau-critique">CRITIQUE · FC 142 → ambulance</mat-button-toggle>
             <mat-button-toggle value="ELEVEE" data-testid="niveau-elevee">ÉLEVÉE · FC 118 → RDV d'urgence</mat-button-toggle>
           </mat-button-toggle-group>

@@ -1,7 +1,7 @@
 import { Component, computed, inject } from '@angular/core';
 import { BreakpointObserver } from '@angular/cdk/layout';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatListModule } from '@angular/material/list';
@@ -11,7 +11,7 @@ import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { map } from 'rxjs';
+import { filter, map } from 'rxjs';
 import { PATIENTS, ROLES, Role, SessionService } from './core/session.service';
 import { MENUS } from './core/navigation';
 
@@ -37,6 +37,18 @@ export class App {
     inject(BreakpointObserver).observe('(max-width: 900px)').pipe(map((r) => r.matches)),
     { initialValue: false },
   );
+
+  constructor() {
+    // un lien direct (/medecin/…, /admin/…) affiche le menu du rôle correspondant
+    this.router.events
+      .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd), takeUntilDestroyed())
+      .subscribe((e) => {
+        const role = /^\/(patient|medecin|admin)\//.exec(e.urlAfterRedirects)?.[1] as Role | undefined;
+        if (role && role !== this.session.role()) {
+          this.session.role.set(role);
+        }
+      });
+  }
 
   protected changerRole(role: Role): void {
     this.session.role.set(role);
