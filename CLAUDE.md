@@ -99,6 +99,17 @@ Une base PostgreSQL par service (database-per-service).
   - Erreurs : intercepteur (schéma Erreur + X-Correlation-Id) ; réponses GraphQL partielles → puce « Service indisponible ».
   - Gateway : timeout de la route GraphQL porté à 10 s (réponses partielles quand la CNAM est en panne).
   - Tests : Vitest (`npm test`), Playwright contre la stack Docker (`npm run e2e`) ; captures dans `docs/captures/`.
+- [x] Bonus 1 : escalade avec compensation (saga) dans l'orchestrateur
+  - Contrats : SOAP `annulerFeuilleDeSoins` (+ fault `FEUILLE_INCONNUE`, `StatutFeuille` ANNULEE) ; GraphQL
+    `EtatWorkflow` COMPENSE, `StatutFacturation` ANNULEE ; orchestrateur.yaml : état COMPENSE, `TypeEtape`
+    (EXECUTION | COMPENSATION), étape ESCALADE, `compensePar`, `enCompensation`.
+  - Règle (`sahti.escalade.fenetre` = 30 min) : alerte CRITIQUE + workflow ELEVEE du même patient dans la fenêtre,
+    RDV d'urgence CONFIRME et à venir → compensation AVANT l'ambulance (étape ESCALADE du workflow CRITIQUE).
+  - Compensation en ordre inverse, seulement des effets qui existent : FACTUREE → annulerFeuilleDeSoins ;
+    FICHE_PUBLIEE → mettreAJourIntervention (COMPENSE, ANNULEE) + resoudreAlerte ; INTERVENTION_DECLENCHEE →
+    DELETE /rendez-vous (409 + TERMINE → IGNOREE). Idempotentes, retry `appel-idempotent` ; échec → ECHEC,
+    `POST /relancer` reprend les compensations manquantes.
+  - Migration PostgreSQL : `schema.sql` supprime les contraintes CHECK des enums (Hibernate ne les met pas à jour).
 - [ ] Étape 8 : tests et documentation
 
 Ordre de réalisation : 7 → 5 → 6 → bonus (Keycloak) → 8.

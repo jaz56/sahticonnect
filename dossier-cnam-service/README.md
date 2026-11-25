@@ -17,6 +17,7 @@ Namespace `http://sahticonnect.tn/cnam`, adresse `http://localhost:8081/ws`.
 | `verifierDroitsCNAM` | Assuré, couverture (couvert, taux, motif) et montants estimés d'un acte |
 | `emettreFeuilleDeSoins` | Feuille `FS-AAAA-NNNNNN` : CERTIFIEE si le patient est couvert, sinon EMISE à taux 0 (à régulariser) ; ajoutée à l'historique |
 | `consulterHistorique` | Historique du patient, filtre facultatif `dateDebut` / `dateFin`, du plus récent au plus ancien |
+| `annulerFeuilleDeSoins` | Compensation (saga de l'orchestrateur) : passe la feuille à `ANNULEE` et ajoute « Annulation de la feuille FS-… : motif » à l'historique du patient. **Idempotente** : une feuille déjà ANNULEE est renvoyée telle quelle, sans nouvelle ligne. Feuille inconnue → fault `FEUILLE_INCONNUE` |
 | `comparerGaranties` | Compare deux prises en charge et recommande la moins chère pour le patient. Si la vignette est expirée aujourd'hui, le calcul est conservé et la recommandation commence par « Simulation (vignette expirée) : » |
 
 ### Règles métier
@@ -98,7 +99,8 @@ docker run -p 8081:8081 -e DB_URL=jdbc:postgresql://host.docker.internal:5432/cn
 
 ```powershell
 # Tests unitaires (TarificationService : taux, vignette expirée, arrondis), numérotation par séquence,
-# tests d'intégration MockWebServiceClient (4 opérations, faults et leur <detail>)
+# tests d'intégration MockWebServiceClient (5 opérations, faults et leur <detail>), dont
+# AnnulationFeuilleIntegrationTest : annulation + ligne d'historique, déjà annulée (idempotent), FEUILLE_INCONNUE
 .\mvnw.cmd verify
 
 # Service démarré : envoie les requêtes de docs/tests/soap et affiche les réponses (dont une fault)

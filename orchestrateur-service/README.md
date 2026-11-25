@@ -24,8 +24,10 @@ consultable en REST, et diffusée en direct (SSE).
 | 4 | `FICHE_PUBLIEE` | GraphQL `creerIntervention` | La fiche est publiée même si l'intervention a échoué (le médecin doit le voir). |
 | 5 | `FACTUREE` | SOAP `emettreFeuilleDeSoins` puis GraphQL `mettreAJourIntervention` | Seulement si l'étape 3 a réussi. Actes : CRITIQUE `V 1 + K 30`, ÉLEVÉE `CS 1` ; `referenceIntervention` = `INT-…`. Feuille `CERTIFIEE` → `FACTUREE`, sinon `A_REGULARISER`. Sinon étape `IGNOREE`. |
 
-- **État final** : `FACTUREE`, ou `ECHEC` avec `etapeEnEchec` (première étape en échec).
-- Chaque étape trace : nom, statut (`OK` / `ECHEC` / `IGNOREE`), horodatage, durée en ms, tentative, message.
+- **État final** : `FACTUREE`, ou `ECHEC` avec `etapeEnEchec` (première étape en échec), ou `COMPENSE` (saga
+  d'escalade, ci-dessous).
+- Chaque étape trace : nom, type (`EXECUTION` / `COMPENSATION`), statut (`OK` / `ECHEC` / `IGNOREE`), horodatage,
+  durée en ms, tentative, message.
 - **Relance** (`POST /workflows/{id}/relancer`, workflow en `ECHEC` uniquement) : ne rejoue que les étapes
   manquantes. La fiche déjà créée n'est pas recréée, et une feuille déjà émise n'est jamais réémise.
 - L'identifiant du workflow est dans le **MDC** (`[WF-2026-000001]` sur chaque ligne de log), et chaque changement
@@ -70,6 +72,74 @@ sequenceDiagram
         Note over O: 5. FACTUREE
     end
     O-->>O: SSE « workflow » à chaque changement d'état
+```
+
+### Saga d'escalade (bonus) : compensation d'un workflow ELEVEE
+
+**Le cas** : une tachycardie qui s'aggrave produit d'abord une alerte ÉLEVÉE (→ RDV d'urgence, fiche, feuille CS 1),
+puis, quelques minutes plus tard, une alerte CRITIQUE (→ ambulance). Le RDV d'urgence n'a plus de sens : le patient
+part à l'hôpital. Il faut annuler ce qui a été fait pour l'alerte ÉLEVÉE, dans 3 services différents.
+
+**Règle** (propriété `sahti.escalade.fenetre`, 30 min) : à une alerte CRITIQUE, l'orchestrateur cherche un workflow
+ELEVEE du même patient, créé dans la fenêtre, dont l'intervention est un RDV d'urgence encore **CONFIRME et à venir**
+(`GET /rendez-vous/{id}`). S'il le trouve, il le **compense AVANT de lancer l'ambulance** (étape `ESCALADE` du
+workflow CRITIQUE). Sinon (alerte ÉLEVÉE trop ancienne, RDV déjà TERMINE), aucune escalade.
+
+**Compensation**, dans l'**ordre inverse** des étapes d'origine ; chaque compensation est une étape de type
+`COMPENSATION` (même `nom` que l'étape annulée), tracée et publiée sur le SSE :
+
+| Ordre | Étape annulée | Service | Opération de compensation |
+|---|---|---|---|
+| 1 | `FACTUREE` | dossier-cnam (SOAP) | `annulerFeuilleDeSoins(numero, "Escalade vers ambulance WF-…")` : feuille ANNULEE + ligne d'historique |
+| 2 | `FICHE_PUBLIEE` | dashboard-medical (GraphQL) | `mettreAJourIntervention` (état COMPENSE, facturation ANNULEE, « Annulée : escalade vers ambulance INT-… ») puis `resoudreAlerte` (« Remplacée par l'alerte CRITIQUE ALR-… ») |
+| 3 | `INTERVENTION_DECLENCHEE` | portail-patient (REST) | `DELETE /rendez-vous/{id}` ; `409 RDV_NON_ANNULABLE` : déjà ANNULE → OK ; TERMINE → le RDV a eu lieu, rien à compenser pour lui (étape IGNOREE, on le note) |
+
+- **Seuls les effets qui existent sont compensés** : une feuille jamais émise n'est pas annulée, une fiche jamais
+  publiée n'est pas modifiée.
+- **Idempotence** : chaque compensation peut être rejouée sans effet de bord (une feuille déjà ANNULEE est renvoyée
+  telle quelle par la CNAM, une alerte déjà RESOLUE aussi, un RDV déjà annulé répond 409 et on lit son état). Elles
+  suivent donc la politique de retry des opérations idempotentes (`appel-idempotent`). Une compensation déjà réussie
+  n'est jamais rejouée lors d'une relance.
+- **État** : le workflow ELEVEE passe à `COMPENSE` (`statutFacturation = ANNULEE`, `compensePar = WF-…` de la
+  CRITIQUE). Si une compensation échoue après les retries : `ECHEC` avec l'étape en cause ; `POST /relancer` reprend
+  **les compensations manquantes** (`enCompensation = true`).
+- **Workflow CRITIQUE** : étape `ESCALADE` (« WF-… compensé »), puis le parcours normal (ambulance, fiche,
+  feuille V 1 + K 30). Si la compensation a échoué, l'ambulance part **quand même** (l'urgence vitale passe avant la
+  cohérence administrative) et l'étape ESCALADE est en ECHEC : relancer l'un ou l'autre workflow termine la
+  compensation.
+- Côté client web (Admin → Workflows) : badge « Compensé », étape ESCALADE, ligne des compensations
+  ([capture](../docs/captures/10-saga-compensation.png)) ; `demo.ps1` affiche la saga et les factures actives.
+- Résultat de la tachycardie complète : **une seule facture active** (145,000 DT pour l'ambulance), la feuille CS 1
+  est annulée, le RDV d'urgence ANNULE, l'alerte ÉLEVÉE résolue.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant T as telemetrie<br/>(gRPC)
+    participant O as orchestrateur
+    participant P as portail-patient<br/>(REST)
+    participant D as dashboard-medical<br/>(GraphQL)
+    participant S as dossier-cnam<br/>(SOAP)
+
+    T-->>O: Alerte ELEVEE (FC 118)
+    Note over O: WF ELEVEE : RDV d'urgence RDV-…, fiche INT-a, feuille FS-a (CS 1) → FACTUREE
+    T-->>O: Alerte CRITIQUE (FC 142), quelques minutes plus tard
+    Note over O: WF CRITIQUE : ALERTE_RECUE, DROITS_VERIFIES
+    O->>P: GET /rendez-vous/RDV-…
+    P-->>O: CONFIRME, à venir → escalade
+    rect rgb(239, 231, 251)
+        Note over O,S: Compensation du WF ELEVEE, ordre INVERSE des étapes
+        O->>S: annulerFeuilleDeSoins(FS-a, "Escalade vers ambulance WF-…")
+        S-->>O: FS-a ANNULEE (+ ligne d'historique)
+        O->>D: mettreAJourIntervention(INT-a : COMPENSE, ANNULEE)
+        O->>D: resoudreAlerte(ALR ELEVEE, "Remplacée par l'alerte CRITIQUE ALR-…")
+        O->>P: DELETE /rendez-vous/RDV-…
+        P-->>O: 204 (RDV ANNULE)
+        Note over O: WF ELEVEE → COMPENSE ; WF CRITIQUE : étape ESCALADE OK
+    end
+    O->>P: POST /urgences/ambulances
+    O->>D: creerIntervention (INT-b) puis description de INT-a : « … escalade vers ambulance INT-b »
+    O->>S: emettreFeuilleDeSoins (V 1 + K 30) → FS-b, seule facture active (145,000 DT)
 ```
 
 ## Contrat
@@ -124,10 +194,13 @@ docker build -t sahticonnect/orchestrateur-service .
 ## Tester
 
 ```powershell
-# 34 tests :
+# 44 tests :
 #  - WorkflowAlerteServiceTest : un test par scénario (PAT-0001 CRITIQUE facturé, PAT-0002 non couvert,
 #    PAT-0003 ÉLEVÉE → RDV, CNAM en panne, portail en panne, aucun créneau → téléconsultation, mission déjà
 #    en cours, aucun véhicule → RDV, relance, feuille non réémise) ;
+#  - SagaEscaladeTest : tachycardie complète (ELEVEE → COMPENSE, CRITIQUE → FACTUREE, une seule facture active,
+#    ordre inverse vérifié), pas d'escalade après 30 min ou si le RDV est TERMINE, compensation partielle (feuille
+#    jamais émise), échec de compensation puis relance, idempotence (RDV déjà annulé, compensation rejouée) ;
 #  - OrchestrateurAlertesTest : idempotence, ordre par patient, parallélisme entre patients, règles de relance ;
 #  - OrchestrateurIntegrationTest : WireMock (REST, SOAP, GraphQL), retry sur 503, pas de retry sur Fault Client
 #    ni sur une création sans réponse, repli, relance, erreurs du contrat ;

@@ -58,6 +58,11 @@ Détails et tableau des routes : [README de la gateway](api-gateway/README.md).
 
 Workflow d'alerte, piloté par l'orchestrateur (une file par patient, chaque étape tracée et relançable) :
 `ALERTE_RECUE → DROITS_VERIFIES → INTERVENTION_DECLENCHEE → FICHE_PUBLIEE → FACTUREE` (ou `ECHEC`).
+
+**Saga d'escalade (bonus)** : une alerte CRITIQUE qui suit, dans les 30 min, une alerte ÉLEVÉE du même patient
+dont le RDV d'urgence est encore à venir **compense** le workflow ÉLEVÉE avant de lancer l'ambulance, dans l'ordre
+inverse de ses étapes : feuille de soins annulée (SOAP `annulerFeuilleDeSoins`), fiche COMPENSE et alerte résolue
+(GraphQL), RDV annulé (REST). Le workflow ÉLEVÉE passe à `COMPENSE` ; il ne reste qu'une facture active.
 Le diagramme de séquence est dans le [README de l'orchestrateur](orchestrateur-service/README.md).
 
 ## Services
@@ -246,7 +251,9 @@ Le même parcours est automatisé par Playwright : `cd web-client; npm run e2e`.
 
 **En ligne de commande** (les 5 services démarrés) : `.\docs\tests\e2e\demo.ps1`. Le script vérifie les services,
 lance le capteur en tachycardie sur PAT-0001, attend la fin des workflows, puis affiche leurs étapes, la fiche
-GraphQL du patient et les feuilles de soins de l'historique CNAM.
+GraphQL du patient et les feuilles de soins de l'historique CNAM. La tachycardie produit une alerte ÉLEVÉE puis
+CRITIQUE : la démo montre aussi la **saga d'escalade** (workflow ÉLEVÉE COMPENSE, RDV ANNULE, feuille CS 1 annulée,
+une seule facture active).
 
 Pas à pas :
 
