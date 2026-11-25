@@ -18,6 +18,13 @@ info:
     - alerte CRITIQUE → `POST /urgences/ambulances` ;
     - alerte ÉLEVÉE → `POST /rendez-vous` avec `type = URGENCE` dans les 2 h.
 
+    Contrôle d'appartenance (sécurité) : l'API Gateway vérifie le jeton OIDC et, pour un utilisateur PATIENT, ajoute
+    l'en-tête `X-Patient-Id` (claim `patient_id` du jeton ; tout `X-Patient-Id` envoyé par le client est supprimé).
+    Quand cet en-tête est présent, le patient ne peut lire ou modifier que SES données : `/patients/{id}/**`,
+    `GET /rendez-vous` (filtré sur lui), `GET`/`PUT`/`DELETE /rendez-vous/{id}` de ses rendez-vous,
+    `POST /rendez-vous` et `POST /urgences/ambulances` à son nom, ses missions d'ambulance ; sinon
+    `403 ACCES_REFUSE`. Sans en-tête (appel interne de l'orchestrateur, médecin, administrateur) : accès complet.
+
     Codes d'erreur métier (champ `code` de l'objet `Erreur`, stables pour les clients) :
 
     | HTTP | Code | Cas |
@@ -25,6 +32,7 @@ info:
     | 400 | `REQUETE_INVALIDE` | Requête non conforme au contrat (détail champ par champ dans `details`), JSON illisible, champ obligatoire manquant |
     | 400 | `CRENEAU_INCOHERENT` | `POST /rendez-vous` : le créneau n'appartient pas au médecin indiqué ; `PUT /rendez-vous/{id}` : le nouveau créneau n'appartient pas au médecin du rendez-vous (changer de médecin = annuler puis recréer) |
     | 400 | `TYPE_CRENEAU_INCOMPATIBLE` | `POST`/`PUT` rendez-vous : le type demandé ne correspond pas au type du créneau |
+    | 403 | `ACCES_REFUSE` | Patient connecté (`X-Patient-Id`) qui accède aux données d'un autre patient |
     | 404 | `PATIENT_INTROUVABLE` | Patient inconnu |
     | 404 | `MEDECIN_INTROUVABLE` | Médecin inconnu |
     | 404 | `CRENEAU_INTROUVABLE` | Créneau inconnu |
@@ -68,6 +76,8 @@ paths:
       operationId: consulterPatient
       summary: Consulter le profil d'un patient
       responses:
+        '403':
+          $ref: '#/components/responses/AccesRefuse'
         '200':
           description: Profil du patient
           content:
@@ -106,6 +116,8 @@ paths:
                     lien: Épouse
                     telephone: '+216 22 333 444'
       responses:
+        '403':
+          $ref: '#/components/responses/AccesRefuse'
         '200':
           description: Profil mis à jour
           content:
@@ -148,6 +160,8 @@ paths:
             type: boolean
             default: false
       responses:
+        '403':
+          $ref: '#/components/responses/AccesRefuse'
         '200':
           description: Ordonnances du patient (la plus récente en premier)
           content:
@@ -316,6 +330,8 @@ paths:
           schema:
             $ref: '#/components/schemas/StatutRendezVous'
       responses:
+        '403':
+          $ref: '#/components/responses/AccesRefuse'
         '200':
           description: Rendez-vous correspondant aux filtres
           content:
@@ -375,6 +391,8 @@ paths:
                   motif: 'Alerte ÉLEVÉE : tension systolique 172 mmHg'
                   referenceAlerte: ALR-2026-000317
       responses:
+        '403':
+          $ref: '#/components/responses/AccesRefuse'
         '201':
           description: Rendez-vous créé
           headers:
@@ -405,6 +423,8 @@ paths:
       operationId: consulterRendezVous
       summary: Consulter un rendez-vous
       responses:
+        '403':
+          $ref: '#/components/responses/AccesRefuse'
         '200':
           description: Rendez-vous trouvé
           content:
@@ -437,6 +457,8 @@ paths:
               type: TELECONSULTATION
               motif: Contrôle trimestriel (à distance)
       responses:
+        '403':
+          $ref: '#/components/responses/AccesRefuse'
         '200':
           description: Rendez-vous modifié
           content:
@@ -456,6 +478,8 @@ paths:
       description: |
         Annulation logique : le rendez-vous passe au statut `ANNULE` et le créneau est libéré.
       responses:
+        '403':
+          $ref: '#/components/responses/AccesRefuse'
         '204':
           description: Rendez-vous annulé
         '400':
@@ -499,6 +523,8 @@ paths:
                 latitude: 36.8008
                 longitude: 10.1800
       responses:
+        '403':
+          $ref: '#/components/responses/AccesRefuse'
         '201':
           description: Mission d'ambulance créée
           headers:
@@ -555,6 +581,8 @@ paths:
       operationId: consulterMissionAmbulance
       summary: Suivre une mission d'ambulance
       responses:
+        '403':
+          $ref: '#/components/responses/AccesRefuse'
         '200':
           description: État de la mission
           content:
@@ -948,6 +976,18 @@ components:
 
   # ===================== RÉPONSES D'ERREUR =====================
   responses:
+    AccesRefuse:
+      description: Données d'un autre patient (contrôle d'appartenance, en-tête X-Patient-Id)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Erreur'
+          example:
+            horodatage: '2026-11-26T10:15:00+01:00'
+            statut: 403
+            code: ACCES_REFUSE
+            message: Le patient PAT-0001 n'a pas accès aux données de PAT-0002
+            chemin: /patients/PAT-0002
     RequeteInvalide:
       description: Requête invalide (paramètre manquant, format incorrect…)
       content:
