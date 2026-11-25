@@ -14,7 +14,10 @@ import lombok.Setter;
 
 import java.time.OffsetDateTime;
 
-/** Trace d'une étape exécutée : nom, statut, fin, durée, message, numéro de tentative. */
+/**
+ * Trace d'une étape exécutée : nom, type (exécution ou compensation), statut, fin, durée, message, numéro de
+ * tentative.
+ */
 @Entity
 @Table(name = "etape_workflow")
 @Getter
@@ -29,6 +32,11 @@ public class Etape {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 23)
     private NomEtape nom;
+
+    /** EXECUTION ou COMPENSATION ; null pour les étapes enregistrées avant la saga (= EXECUTION). */
+    @Enumerated(EnumType.STRING)
+    @Column(length = 12)
+    private TypeEtape type;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 7)
@@ -49,11 +57,25 @@ public class Etape {
     private String message;
 
     public Etape(NomEtape nom, StatutEtape statut, OffsetDateTime horodatage, long dureeMs, int tentative, String message) {
+        this(nom, TypeEtape.EXECUTION, statut, horodatage, dureeMs, tentative, message);
+    }
+
+    public Etape(NomEtape nom, TypeEtape type, StatutEtape statut, OffsetDateTime horodatage, long dureeMs, int tentative,
+                 String message) {
         this.nom = nom;
+        this.type = type;
         this.statut = statut;
         this.horodatage = horodatage;
         this.dureeMs = dureeMs;
         this.tentative = tentative;
         this.message = message;
+    }
+
+    public TypeEtape getType() {
+        return type == null ? TypeEtape.EXECUTION : type;
+    }
+
+    public boolean estCompensation() {
+        return getType() == TypeEtape.COMPENSATION;
     }
 }

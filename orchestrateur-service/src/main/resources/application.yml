@@ -60,6 +60,8 @@ sahti:
     abonnement-actif: true                     # abonnement à SouscrireAlertes au démarrage
     reconnexion-min: 1s                        # backoff de reconnexion : 1 s, 2 s, 4 s… jusqu'à 30 s
     reconnexion-max: 30s
+  escalade:
+    fenetre: 30m                               # alerte CRITIQUE → compense le workflow ELEVEE de moins de 30 min
   facturation:
     etablissement: "SahtiConnect – intervention à domicile"
     medecin: "Équipe d'intervention SahtiConnect"

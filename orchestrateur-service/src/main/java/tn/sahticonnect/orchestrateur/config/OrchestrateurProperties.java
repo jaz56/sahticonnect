@@ -19,7 +19,8 @@ public record OrchestrateurProperties(
         @DefaultValue Service portail,
         @DefaultValue Service dashboard,
         @DefaultValue Alertes alertes,
-        @DefaultValue Facturation facturation) {
+        @DefaultValue Facturation facturation,
+        @DefaultValue Escalade escalade) {
 
     public record Telemetrie(@DefaultValue("localhost:9090") String adresse) {
     }
@@ -36,5 +37,12 @@ public record OrchestrateurProperties(
     /** Champs fixes de la feuille de soins émise à la fin du workflow. */
     public record Facturation(@DefaultValue("SahtiConnect – intervention à domicile") String etablissement,
                               @DefaultValue("Équipe d'intervention SahtiConnect") String medecin) {
+    }
+
+    /**
+     * Saga d'escalade : une alerte CRITIQUE compense le workflow ELEVEE du même patient créé depuis moins de
+     * {@code fenetre}, si son RDV d'urgence est encore à venir.
+     */
+    public record Escalade(@DefaultValue("30m") Duration fenetre) {
     }
 }

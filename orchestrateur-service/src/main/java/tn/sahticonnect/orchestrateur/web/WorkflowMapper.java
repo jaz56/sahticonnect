@@ -6,6 +6,7 @@ import tn.sahticonnect.orchestrateur.api.model.EtapeDto;
 import tn.sahticonnect.orchestrateur.api.model.EtatWorkflowDto;
 import tn.sahticonnect.orchestrateur.api.model.NiveauAlerteDto;
 import tn.sahticonnect.orchestrateur.api.model.NomEtapeDto;
+import tn.sahticonnect.orchestrateur.api.model.TypeEtapeDto;
 import tn.sahticonnect.orchestrateur.api.model.StatutEtapeDto;
 import tn.sahticonnect.orchestrateur.api.model.StatutFacturationDto;
 import tn.sahticonnect.orchestrateur.api.model.TypeInterventionDto;
@@ -35,6 +36,8 @@ public class WorkflowMapper {
                 .etat(EtatWorkflowDto.fromValue(wf.getEtat().name()))
                 .etapeEnEchec(wf.getEtapeEnEchec() == null ? null : NomEtapeDto.fromValue(wf.getEtapeEnEchec().name()))
                 .enCours(wf.isEnCours())
+                .enCompensation(wf.getEnCompensation())
+                .compensePar(wf.getCompensePar())
                 .couvert(wf.getCouvert())
                 .tauxRemboursement(wf.getTauxRemboursement())
                 .statutFacturation(wf.getStatutFacturation() == null ? null
@@ -52,6 +55,7 @@ public class WorkflowMapper {
         dto.setEtapes(wf.getEtapes().stream()
                 .map(e -> new EtapeDto()
                         .nom(NomEtapeDto.fromValue(e.getNom().name()))
+                        .type(TypeEtapeDto.fromValue(e.getType().name()))
                         .statut(StatutEtapeDto.fromValue(e.getStatut().name()))
                         .horodatage(e.getHorodatage())
                         .dureeMs(e.getDureeMs())

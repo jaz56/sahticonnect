@@ -54,6 +54,8 @@ import java.util.regex.Pattern;
  *   <li>FACTUREE (seulement si l'intervention a été déclenchée) : SOAP emettreFeuilleDeSoins puis GraphQL
  *       mettreAJourIntervention.</li>
  * </ol>
+ * Alerte CRITIQUE : une étape ESCALADE, avant l'ambulance, compense le workflow ELEVEE récent du patient
+ * (voir {@link SagaEscalade}).
  */
 @Service
 @Slf4j
@@ -69,10 +71,12 @@ public class WorkflowAlerteService {
     private final PublicationWorkflows publication;
     private final OrchestrateurProperties proprietes;
     private final Clock horloge;
+    private final SagaEscalade saga;
 
     public WorkflowAlerteService(WorkflowRepository repository, DashboardClient dashboard, CnamClient cnam,
                                  PortailClient portail, PublicationWorkflows publication,
-                                 OrchestrateurProperties proprietes, Clock horloge) {
+                                 OrchestrateurProperties proprietes, Clock horloge, SagaEscalade saga) {
+        this.saga = saga;
         this.repository = repository;
         this.dashboard = dashboard;
         this.cnam = cnam;
@@ -114,11 +118,20 @@ public class WorkflowAlerteService {
                     wf.getNiveau(), wf.getAlerteId(), wf.getPatientId());
             wf = enregistrer(wf, false);
 
-            wf = etape(wf, NomEtape.ALERTE_RECUE, this::enregistrerAlerte);
-            wf = etape(wf, NomEtape.DROITS_VERIFIES, this::verifierDroits);
-            wf = etape(wf, NomEtape.INTERVENTION_DECLENCHEE, this::declencherIntervention);
-            wf = etape(wf, NomEtape.FICHE_PUBLIEE, this::publierFiche);
-            wf = etape(wf, NomEtape.FACTUREE, this::facturer);
+            if (wf.estEnCompensation()) {
+                // workflow compensé lors d'une escalade : la relance reprend les compensations manquantes
+                wf = saga.reprendre(wf);
+            } else {
+                wf = etape(wf, NomEtape.ALERTE_RECUE, this::enregistrerAlerte);
+                wf = etape(wf, NomEtape.DROITS_VERIFIES, this::verifierDroits);
+                wf = escalade(wf);
+                wf = etape(wf, NomEtape.INTERVENTION_DECLENCHEE, this::declencherIntervention);
+                wf = etape(wf, NomEtape.FICHE_PUBLIEE, this::publierFiche);
+                if (wf.getNiveau() == NiveauAlerte.CRITIQUE && wf.estReussie(NomEtape.FICHE_PUBLIEE)) {
+                    saga.lierFicheAmbulance(wf);
+                }
+                wf = etape(wf, NomEtape.FACTUREE, this::facturer);
+            }
         } catch (RuntimeException inattendue) {
             log.error("Workflow {} : erreur inattendue", workflowId, inattendue);
         } finally {
@@ -204,6 +217,24 @@ public class WorkflowAlerteService {
             return Resultat.echec("Couverture inconnue (" + Pannes.decrire(e)
                     + ") : on continue, facturation à régulariser");
         }
+    }
+
+    // ===================== ESCALADE (saga) =====================
+
+    /**
+     * Alerte CRITIQUE : si le patient a un workflow ELEVEE récent dont le RDV d'urgence est encore à venir, ce workflow
+     * est compensé AVANT l'ambulance (étape ESCALADE). Sans workflow à compenser, aucune étape n'est tracée.
+     */
+    private Workflow escalade(Workflow wf) {
+        if (wf.getNiveau() != NiveauAlerte.CRITIQUE || wf.estReussie(NomEtape.ESCALADE)) {
+            return wf;
+        }
+        var aCompenser = saga.workflowACompenser(wf);
+        if (aCompenser.isEmpty()) {
+            return wf;
+        }
+        Workflow elevee = aCompenser.get();
+        return etape(wf, NomEtape.ESCALADE, critique -> saga.escalader(critique, elevee));
     }
 
     // ===================== 3. INTERVENTION_DECLENCHEE =====================

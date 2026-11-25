@@ -1,5 +1,7 @@
 package tn.sahticonnect.orchestrateur.client;
 
+import tn.sahticonnect.orchestrateur.client.cnam.ws.AnnulerFeuilleDeSoinsRequest;
+import tn.sahticonnect.orchestrateur.client.cnam.ws.AnnulerFeuilleDeSoinsResponse;
 import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import jakarta.xml.bind.JAXBElement;
@@ -35,7 +37,7 @@ import java.util.List;
  * Client SOAP de dossier-cnam-service : WebServiceTemplate + classes JAXB générées depuis le XSD.
  * <ul>
  *   <li>SOAP Fault « Client » → ErreurMetierException avec le code du &lt;detail&gt; (PATIENT_INCONNU,
- *       VIGNETTE_INVALIDE, ACTE_INVALIDE) : jamais réessayée ;</li>
+ *       VIGNETTE_INVALIDE, ACTE_INVALIDE, FEUILLE_INCONNUE) : jamais réessayée ;</li>
  *   <li>panne réseau, délai de 3 s, fault « Server », HTTP 5xx → erreur technique : retry puis circuit breaker.</li>
  * </ul>
  */
@@ -129,6 +131,21 @@ public class CnamClient {
         actes.forEach(a -> requete.getActes().add(versXml(a)));
         requete.setReferenceIntervention(referenceIntervention);
         FeuilleDeSoins feuille = ((EmettreFeuilleDeSoinsResponse) appeler(requete)).getFeuilleDeSoins();
+        return new FeuilleEmise(feuille.getNumero(), feuille.getMontantTotal(), feuille.getPartCNAM(),
+                feuille.getPartPatient(), feuille.getStatut().value());
+    }
+
+    /**
+     * annulerFeuilleDeSoins (compensation de la saga) : idempotente côté CNAM (une feuille déjà ANNULEE est renvoyée
+     * telle quelle), donc réessayée comme une lecture. Feuille inconnue → ErreurMetierException FEUILLE_INCONNUE.
+     */
+    @CircuitBreaker(name = SERVICE)
+    @Retry(name = "appel-idempotent")
+    public FeuilleEmise annulerFeuilleDeSoins(String numero, String motif) {
+        AnnulerFeuilleDeSoinsRequest requete = new AnnulerFeuilleDeSoinsRequest();
+        requete.setNumero(numero);
+        requete.setMotif(motif);
+        FeuilleDeSoins feuille = ((AnnulerFeuilleDeSoinsResponse) appeler(requete)).getFeuilleDeSoins();
         return new FeuilleEmise(feuille.getNumero(), feuille.getMontantTotal(), feuille.getPartCNAM(),
                 feuille.getPartPatient(), feuille.getStatut().value());
     }

@@ -73,9 +73,11 @@ class WorkflowAlerteServiceTest {
                 new OrchestrateurProperties.Telemetrie("localhost:9090"), new OrchestrateurProperties.Service("cnam"),
                 new OrchestrateurProperties.Service("portail"), new OrchestrateurProperties.Service("dashboard"),
                 new OrchestrateurProperties.Alertes(false, Duration.ofSeconds(1), Duration.ofSeconds(30)),
-                new OrchestrateurProperties.Facturation("SahtiConnect – intervention à domicile", "Équipe SahtiConnect"));
+                new OrchestrateurProperties.Facturation("SahtiConnect – intervention à domicile", "Équipe SahtiConnect"),
+                new OrchestrateurProperties.Escalade(Duration.ofMinutes(30)));
         service = new WorkflowAlerteService(repository, dashboard, cnam, portail, publication, proprietes,
-                Clock.fixed(T0.toInstant(), TUNIS));
+                Clock.fixed(T0.toInstant(), TUNIS),
+                new SagaEscalade(repository, cnam, dashboard, portail, publication, proprietes, Clock.fixed(T0.toInstant(), TUNIS)));
         when(repository.save(any(Workflow.class))).thenAnswer(appel -> appel.getArgument(0));
         // par défaut : tout fonctionne
         when(cnam.consulterVignette(anyString())).thenAnswer(appel -> "VG-2026-00000" + ((String) appel.getArgument(0)).charAt(7));
@@ -135,7 +137,7 @@ class WorkflowAlerteServiceTest {
         assertThat(wf.getEtat()).isEqualTo(EtatWorkflow.FACTUREE);
         assertThat(wf.getEtapeEnEchec()).isNull();
         assertThat(wf.isEnCours()).isFalse();
-        assertThat(wf.getEtapes()).extracting(e -> e.getNom()).containsExactly(NomEtape.values());
+        assertThat(wf.getEtapes()).extracting(e -> e.getNom()).containsExactlyElementsOf(NomEtape.PRINCIPALES);
         assertThat(statuts(wf, 1)).containsOnly(StatutEtape.OK);
         assertThat(wf.getCouvert()).isTrue();
         assertThat(wf.getTauxRemboursement()).isEqualTo(100);

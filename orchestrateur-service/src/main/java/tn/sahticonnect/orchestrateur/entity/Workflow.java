@@ -84,6 +84,19 @@ public class Workflow implements Persistable<String> {
     /** Numéro de l'exécution en cours ou de la dernière (1 = initiale, 2 = première relance…). */
     private int tentative;
 
+    // ---------- Saga d'escalade ----------
+    /**
+     * Vrai dès que la compensation de ce workflow a commencé : l'état est alors piloté par la saga (COMPENSE, ou
+     * ECHEC si une compensation a échoué) et une relance reprend les compensations manquantes.
+     * Boolean (et non boolean) : colonne ajoutée à une table existante, nulle pour les anciens workflows.
+     */
+    @Column(name = "en_compensation")
+    private Boolean enCompensation;
+
+    /** Workflow CRITIQUE dont l'escalade a déclenché la compensation de ce workflow ELEVEE. */
+    @Column(name = "compense_par", length = 14)
+    private String compensePar;
+
     // ---------- Données produites par les étapes ----------
     @Column(name = "code_vignette", length = 14)
     private String codeVignette;
@@ -158,9 +171,9 @@ public class Workflow implements Persistable<String> {
         etapes.add(etape);
     }
 
-    /** Dernière trace de cette étape (toutes tentatives confondues). */
+    /** Dernière exécution de cette étape (toutes tentatives confondues, compensations exclues). */
     public Optional<Etape> derniere(NomEtape nom) {
-        return etapes.stream().filter(e -> e.getNom() == nom).reduce((premiere, seconde) -> seconde);
+        return etapes.stream().filter(e -> e.getNom() == nom && !e.estCompensation()).reduce((premiere, seconde) -> seconde);
     }
 
     /** L'étape a-t-elle déjà réussi ? (une relance ne la rejoue pas) */
@@ -168,21 +181,45 @@ public class Workflow implements Persistable<String> {
         return derniere(nom).map(e -> e.getStatut() == StatutEtape.OK).orElse(false);
     }
 
+    /** Dernière compensation de cette étape. */
+    public Optional<Etape> derniereCompensation(NomEtape nom) {
+        return etapes.stream().filter(e -> e.getNom() == nom && e.estCompensation()).reduce((premiere, seconde) -> seconde);
+    }
+
+    /** La compensation de cette étape est-elle faite ? (OK, ou IGNOREE : rien à compenser) : jamais rejouée. */
+    public boolean estCompensee(NomEtape nom) {
+        return derniereCompensation(nom).map(e -> e.getStatut() != StatutEtape.ECHEC).orElse(false);
+    }
+
+    public boolean estEnCompensation() {
+        return Boolean.TRUE.equals(enCompensation);
+    }
+
     /**
-     * Recalcule l'état : FACTUREE si les 5 étapes sont réussies ; sinon, en cours d'exécution, la dernière étape
-     * réussie dans l'ordre ; à la fin d'une exécution incomplète, ECHEC avec la première étape non réussie.
+     * Recalcule l'état : FACTUREE si les 5 étapes (et ESCALADE, si elle a eu lieu) sont réussies ; sinon, en cours
+     * d'exécution, la dernière étape principale réussie ; à la fin d'une exécution incomplète, ECHEC avec la première
+     * étape non réussie. Un workflow en compensation garde l'état fixé par la saga (COMPENSE ou ECHEC).
      */
     public void recalculerEtat(boolean executionTerminee) {
+        if (estEnCompensation()) {
+            return;
+        }
+        List<NomEtape> attendues = new ArrayList<>(NomEtape.PRINCIPALES);
+        if (derniere(NomEtape.ESCALADE).isPresent()) {
+            attendues.add(2, NomEtape.ESCALADE);
+        }
         NomEtape premiereNonReussie = null;
         NomEtape derniereReussie = null;
-        for (NomEtape nom : NomEtape.values()) {
+        for (NomEtape nom : attendues) {
             if (estReussie(nom)) {
-                derniereReussie = nom;
+                if (nom != NomEtape.ESCALADE) {
+                    derniereReussie = nom;
+                }
             } else if (premiereNonReussie == null && derniere(nom).isPresent()) {
                 premiereNonReussie = nom;
             }
         }
-        boolean toutesReussies = java.util.Arrays.stream(NomEtape.values()).allMatch(this::estReussie);
+        boolean toutesReussies = attendues.stream().allMatch(this::estReussie);
         if (toutesReussies) {
             etat = EtatWorkflow.FACTUREE;
             etapeEnEchec = null;

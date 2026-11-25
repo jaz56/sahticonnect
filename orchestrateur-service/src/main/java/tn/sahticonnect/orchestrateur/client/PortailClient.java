@@ -29,7 +29,8 @@ import java.time.OffsetDateTime;
  *       AUCUN_VEHICULE_DISPONIBLE, AUCUN_CRENEAU_URGENCE…) : jamais réessayée ;</li>
  *   <li>5xx, délai dépassé, service arrêté → erreur technique.</li>
  * </ul>
- * Les deux appels sont des créations : retry « appel-non-idempotent » (seulement si la requête n'est pas partie).
+ * Les créations (ambulance, RDV) : retry « appel-non-idempotent » (seulement si la requête n'est pas partie) ;
+ * la lecture et l'annulation d'un RDV (saga) : retry « appel-idempotent ».
  */
 @Component
 public class PortailClient {
@@ -40,6 +41,14 @@ public class PortailClient {
     }
 
     public record RendezVous(String id, String medecinId, OffsetDateTime debut) {
+    }
+
+    /** État d'un RDV existant (saga : seul un RDV CONFIRME et à venir est compensé). */
+    public record EtatRendezVous(String id, String statut, OffsetDateTime debut) {
+
+        public boolean estConfirme() {
+            return "CONFIRME".equals(statut);
+        }
     }
 
     private final UrgencesApi urgences;
@@ -89,6 +98,32 @@ public class PortailClient {
         try {
             RendezVousDto rdv = rendezVous.creerRendezVous(demande);
             return new RendezVous(rdv.getId(), rdv.getMedecinId(), rdv.getDebut());
+        } catch (RuntimeException e) {
+            throw traduire(e);
+        }
+    }
+
+    /** GET /rendez-vous/{id} : lecture, réessayée sur toute erreur technique. */
+    @CircuitBreaker(name = SERVICE)
+    @Retry(name = "appel-idempotent")
+    public EtatRendezVous consulterRendezVous(String id) {
+        try {
+            RendezVousDto rdv = rendezVous.consulterRendezVous(id);
+            return new EtatRendezVous(rdv.getId(), rdv.getStatut() == null ? null : rdv.getStatut().getValue(), rdv.getDebut());
+        } catch (RuntimeException e) {
+            throw traduire(e);
+        }
+    }
+
+    /**
+     * DELETE /rendez-vous/{id} (compensation de la saga) : annuler deux fois laisse le même état (le 2e appel reçoit
+     * 409 RDV_NON_ANNULABLE, traité par la saga) ; réessayé comme une opération idempotente.
+     */
+    @CircuitBreaker(name = SERVICE)
+    @Retry(name = "appel-idempotent")
+    public void annulerRendezVous(String id) {
+        try {
+            rendezVous.annulerRendezVous(id);
         } catch (RuntimeException e) {
             throw traduire(e);
         }

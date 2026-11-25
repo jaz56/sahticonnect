@@ -94,6 +94,13 @@ public class DashboardClient {
         executer("mettreAJourIntervention", Map.of("id", interventionId, "input", input));
     }
 
+    /** resoudreAlerte (compensation de la saga) : idempotente (une alerte déjà RESOLUE est renvoyée telle quelle). */
+    @CircuitBreaker(name = SERVICE)
+    @Retry(name = "appel-idempotent")
+    public void resoudreAlerte(String alerteId, String commentaire) {
+        executer("resoudreAlerte", Map.of("id", alerteId, "commentaire", commentaire));
+    }
+
     private ClientGraphQlResponse executer(String document, Map<String, Object> variables) {
         ClientGraphQlResponse reponse;
         try {

@@ -1,0 +1,7 @@
+# Compensation (saga d'escalade) : l'alerte ELEVEE remplacée par l'alerte CRITIQUE est résolue
+mutation resoudreAlerte($id: ID!, $commentaire: String) {
+  resoudreAlerte(id: $id, commentaire: $commentaire) {
+    id
+    statut
+  }
+}

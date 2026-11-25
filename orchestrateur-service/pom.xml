@@ -217,7 +217,7 @@
                             <invokerPackage>tn.sahticonnect.orchestrateur.client.portail.invoker</invokerPackage>
                             <modelNameSuffix>Dto</modelNameSuffix>
                             <!-- seules les opérations appelées par l'orchestrateur -->
-                            <openapiNormalizer>FILTER=operationId:demanderAmbulance|consulterMissionAmbulance|creerRendezVous</openapiNormalizer>
+                            <openapiNormalizer>FILTER=operationId:demanderAmbulance|consulterMissionAmbulance|creerRendezVous|consulterRendezVous|annulerRendezVous</openapiNormalizer>
                             <generateApiTests>false</generateApiTests>
                             <generateModelTests>false</generateModelTests>
                             <generateApiDocumentation>false</generateApiDocumentation>

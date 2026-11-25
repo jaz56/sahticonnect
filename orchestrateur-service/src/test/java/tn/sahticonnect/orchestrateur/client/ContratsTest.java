@@ -42,7 +42,7 @@ class ContratsTest {
     }
 
     @ParameterizedTest(name = "{0}.graphql")
-    @ValueSource(strings = {"enregistrerAlerte", "creerIntervention", "mettreAJourIntervention"})
+    @ValueSource(strings = {"enregistrerAlerte", "creerIntervention", "mettreAJourIntervention", "resoudreAlerte"})
     void documentGraphQlValidePourLeSchemaDuDashboard(String document) throws IOException {
         GraphQLSchema schema = UnExecutableSchemaGenerator.makeUnExecutableSchema(new SchemaParser().parse(
                 Files.readString(Path.of("src/test/resources/contrats/dashboard-medical.graphqls"))));
