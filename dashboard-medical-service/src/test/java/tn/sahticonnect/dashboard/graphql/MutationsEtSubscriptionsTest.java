@@ -211,6 +211,25 @@ class MutationsEtSubscriptionsTest {
     }
 
     @Test
+    void mettreAJourIntervention_compensation_etatCompenseEtFacturationAnnulee() {
+        String id = graphQl.document("mutation { creerIntervention(input: { patientId: \"PAT-0003\", type: RDV_URGENCE }) { id } }")
+                .execute().path("creerIntervention.id").entity(String.class).get();
+
+        graphQl.document("""
+                        mutation($id: ID!) { mettreAJourIntervention(id: $id, input: {
+                            etat: COMPENSE, statutFacturation: ANNULEE,
+                            description: "Annulée : escalade vers ambulance INT-2026-000043" }) {
+                            etat statutFacturation description
+                        } }""")
+                .variable("id", id)
+                .execute()
+                .path("mettreAJourIntervention.etat").entity(String.class).isEqualTo("COMPENSE")
+                .path("mettreAJourIntervention.statutFacturation").entity(String.class).isEqualTo("ANNULEE")
+                .path("mettreAJourIntervention.description").entity(String.class)
+                .isEqualTo("Annulée : escalade vers ambulance INT-2026-000043");
+    }
+
+    @Test
     void mettreAJourIntervention_erreurs() {
         graphQl.document("mutation { mettreAJourIntervention(id: \"INT-2026-999999\", input: { etat: ECHEC }) { id } }")
                 .execute()
