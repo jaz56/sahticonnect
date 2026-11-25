@@ -1,5 +1,6 @@
 package tn.sahticonnect.cnam.service;
 
+import tn.sahticonnect.cnam.exception.FeuilleInconnueException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -100,6 +101,37 @@ public class DossierCnamService {
         feuilleRepository.save(feuille);
 
         historiqueRepository.save(entreeHistorique(feuille, demande.actes()));
+        return feuille;
+    }
+
+    // ===================== annulerFeuilleDeSoins =====================
+
+    /**
+     * Annule une feuille de soins (compensation d'une saga) et l'inscrit dans l'historique du patient.
+     * Idempotent : une feuille déjà ANNULEE est renvoyée telle quelle, sans nouvelle ligne d'historique.
+     */
+    public FeuilleDeSoins annulerFeuilleDeSoins(String numero, String motif) {
+        FeuilleDeSoins feuille = feuilleRepository.findByNumero(numero)
+                .orElseThrow(() -> new FeuilleInconnueException(numero));
+        feuille.getLignes().size(); // lignes chargées dans la transaction : le mapper les lit ensuite
+        if (feuille.getStatut() == StatutFeuille.ANNULEE) {
+            return feuille;
+        }
+        feuille.setStatut(StatutFeuille.ANNULEE);
+
+        EntreeHistorique entree = new EntreeHistorique();
+        entree.setAssure(feuille.getAssure());
+        entree.setDate(LocalDate.now(horloge));
+        entree.setEtablissement(feuille.getEtablissement());
+        entree.setDiagnostic("Annulation de la feuille " + numero + " : " + motif);
+        List<ActeCote> actes = new ArrayList<>();
+        for (LigneActe ligne : feuille.getLignes()) {
+            ActeCote acte = ligne.getActe();
+            actes.add(new ActeCote(acte.getLettreCle(), acte.getCoefficient(), acte.getLibelle()));
+        }
+        entree.setActes(actes);
+        entree.setNumeroFeuilleSoins(numero);
+        historiqueRepository.save(entree);
         return feuille;
     }
 

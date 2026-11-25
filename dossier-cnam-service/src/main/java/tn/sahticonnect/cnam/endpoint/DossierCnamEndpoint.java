@@ -1,5 +1,7 @@
 package tn.sahticonnect.cnam.endpoint;
 
+import tn.sahticonnect.cnam.ws.AnnulerFeuilleDeSoinsRequest;
+import tn.sahticonnect.cnam.ws.AnnulerFeuilleDeSoinsResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ws.server.endpoint.annotation.Endpoint;
 import org.springframework.ws.server.endpoint.annotation.PayloadRoot;
@@ -45,6 +47,13 @@ public class DossierCnamEndpoint {
     @ResponsePayload
     public EmettreFeuilleDeSoinsResponse emettreFeuilleDeSoins(@RequestPayload EmettreFeuilleDeSoinsRequest requete) {
         return mapper.versReponse(service.emettreFeuilleDeSoins(mapper.versDemande(requete)));
+    }
+
+    /** Compensation (saga) : idempotent ; feuille inconnue → fault annulerFeuilleDeSoinsFault, code FEUILLE_INCONNUE. */
+    @PayloadRoot(namespace = NAMESPACE, localPart = "annulerFeuilleDeSoinsRequest")
+    @ResponsePayload
+    public AnnulerFeuilleDeSoinsResponse annulerFeuilleDeSoins(@RequestPayload AnnulerFeuilleDeSoinsRequest requete) {
+        return mapper.versReponseAnnulation(service.annulerFeuilleDeSoins(requete.getNumero(), requete.getMotif()));
     }
 
     @PayloadRoot(namespace = NAMESPACE, localPart = "consulterHistoriqueRequest")

@@ -1,5 +1,6 @@
 package tn.sahticonnect.cnam.mapper;
 
+import tn.sahticonnect.cnam.ws.AnnulerFeuilleDeSoinsResponse;
 import org.springframework.stereotype.Component;
 import tn.sahticonnect.cnam.entity.ActeCote;
 import tn.sahticonnect.cnam.entity.Assure;
@@ -91,6 +92,18 @@ public class DossierCnamMapper {
     }
 
     public EmettreFeuilleDeSoinsResponse versReponse(FeuilleDeSoins feuille) {
+        EmettreFeuilleDeSoinsResponse reponse = new EmettreFeuilleDeSoinsResponse();
+        reponse.setFeuilleDeSoins(versFeuilleXml(feuille));
+        return reponse;
+    }
+
+    public AnnulerFeuilleDeSoinsResponse versReponseAnnulation(FeuilleDeSoins feuille) {
+        AnnulerFeuilleDeSoinsResponse reponse = new AnnulerFeuilleDeSoinsResponse();
+        reponse.setFeuilleDeSoins(versFeuilleXml(feuille));
+        return reponse;
+    }
+
+    public tn.sahticonnect.cnam.ws.FeuilleDeSoins versFeuilleXml(FeuilleDeSoins feuille) {
         tn.sahticonnect.cnam.ws.FeuilleDeSoins xml = new tn.sahticonnect.cnam.ws.FeuilleDeSoins();
         xml.setNumero(feuille.getNumero());
         xml.setIdentifiantPatient(feuille.getAssure().getIdentifiantPatient());
@@ -110,10 +123,7 @@ public class DossierCnamMapper {
         xml.setStatut(tn.sahticonnect.cnam.ws.StatutFeuille.fromValue(feuille.getStatut().name()));
         xml.setCodeCertification(feuille.getCodeCertification());
         xml.setReferenceIntervention(feuille.getReferenceIntervention());
-
-        EmettreFeuilleDeSoinsResponse reponse = new EmettreFeuilleDeSoinsResponse();
-        reponse.setFeuilleDeSoins(xml);
-        return reponse;
+        return xml;
     }
 
     public ConsulterHistoriqueResponse versReponse(ConsultationHistorique consultation) {
