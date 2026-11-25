@@ -90,9 +90,17 @@ Une base PostgreSQL par service (database-per-service).
     `Erreur` (+ `service`), SOAP Fault Server pour la CNAM. Swagger UI regroupé (contrats relayés, `servers` réécrit).
   - dossier-cnam : `forward-headers-strategy=framework` → le WSDL annonce l'adresse par laquelle il est lu.
   - Scripts de test : paramètre `-ViaGateway`. En production, seul le port 8080 serait publié.
-- [ ] Étape 6 : client Angular
+- [x] Étape 6 : client Angular (`web-client`, 4200)
+  - Angular 22.3 (Node ≥ 22.22), standalone + signals + zoneless, lazy loading, Material 3, locale `fr-TN`, pipe `dt`.
+  - Toutes les requêtes passent par la gateway (`environment.gatewayUrl`), jamais directement par un service.
+  - Contract-first : client REST généré (openapi-generator `typescript-angular`, `npm run generate:api`),
+    GraphQL généré (graphql-codegen + Apollo, `npm run generate:graphql`) ; code généré non versionné.
+    SOAP : `CnamSoapService` (enveloppes à la main, DOMParser, Faults) ; SSE : EventSource → Observable.
+  - Erreurs : intercepteur (schéma Erreur + X-Correlation-Id) ; réponses GraphQL partielles → puce « Service indisponible ».
+  - Gateway : timeout de la route GraphQL porté à 10 s (réponses partielles quand la CNAM est en panne).
+  - Tests : Vitest (`npm test`), Playwright contre la stack Docker (`npm run e2e`) ; captures dans `docs/captures/`.
 - [ ] Étape 8 : tests et documentation
 
-Ordre de réalisation : 7 → 5 → 6 → bonus (Keycloak).
+Ordre de réalisation : 7 → 5 → 6 → bonus (Keycloak) → 8.
 
 Avance étape par étape : explique ce que tu fais, puis commit à la fin de chaque étape.

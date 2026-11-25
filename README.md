@@ -18,7 +18,7 @@ Chaque service a sa propre base de données (*database-per-service*).
 ## Architecture
 
 ```
- Présentation              web-client (Angular)  ⏳ :4200
+ Présentation              web-client (Angular) :4200   un écran par rôle : patient, médecin, admin
                                      │ HTTP + WebSocket + SSE (un seul hôte : http://localhost:8080)
  Point d'entrée              api-gateway :8080   CORS, X-Correlation-Id, timeouts, circuit breakers
               ┌──────────────┬───────┴──────┬─────────────────────┐
@@ -71,7 +71,7 @@ Le diagramme de séquence est dans le [README de l'orchestrateur](orchestrateur-
 | capteur-simulator | Python grpcio | – | ✅ | [README](capteur-simulator/README.md) | [proto](docs/proto/telemetrie.proto) |
 | orchestrateur-service | REST + SSE, clients des 4 protocoles | 8085 | ✅ | [README](orchestrateur-service/README.md) | [OpenAPI](docs/openapi/orchestrateur.yaml) |
 | api-gateway | Spring Cloud Gateway (WebFlux) | 8080 | ✅ | [README](api-gateway/README.md) | expose les contrats des services sous `/api/…` |
-| web-client | Angular + Apollo | 4200 | ⏳ à venir | – | – |
+| web-client | Angular 22 + Material + Apollo | 4200 | ✅ | [README](web-client/README.md) | clients générés depuis `docs/openapi` et `docs/graphql` |
 
 Les contrats de `docs/` sont la **source de vérité**. Chaque service en garde une copie identique, à partir de
 laquelle le code (JAXB, interfaces Spring, stubs gRPC, schéma GraphQL) est généré au build.
@@ -83,6 +83,7 @@ laquelle le code (JAXB, interfaces Spring, stubs gRPC, schéma GraphQL) est gén
 | JDK | 25 (le code est compilé en `release 21`) ; `JAVA_HOME` doit pointer dessus | services Java |
 | Maven | inutile à installer : chaque service fournit le Maven Wrapper (`mvnw.cmd`) | build |
 | Python | 3.12 ou plus récent (testé en 3.14) | capteur simulé |
+| Node.js | 22.22 ou plus récent (Angular 22) | client web (`npm start`) ; inutile avec Docker |
 | Docker Desktop | récent (Compose v2) | stack complète : `docker compose up --build -d` |
 
 Les commandes ci-dessous sont en **PowerShell**, depuis la racine du dépôt. Pour des accents corrects dans la
@@ -112,7 +113,10 @@ cd orchestrateur-service; .\mvnw.cmd spring-boot:run
 # 6. api-gateway (8080) : point d'entrée unique, relaie vers les services ci-dessus
 cd api-gateway; .\mvnw.cmd spring-boot:run
 
-# 7. capteur simulé (Python) : installation unique, puis lancement
+# 7. web-client (Angular, 4200) : génère les clients depuis les contrats, puis http://localhost:4200
+cd web-client; npm install; npm start
+
+# 8. capteur simulé (Python) : installation unique, puis lancement
 cd capteur-simulator
 python -m venv .venv; .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt; .\generer_stubs.ps1
@@ -128,6 +132,7 @@ Le dashboard démarre aussi sans les autres services. Les champs distants valent
 
 | Interface | URL |
 |---|---|
+| **Client web** (patient, médecin, admin) | http://localhost:4200 |
 | **Via la gateway** : Swagger UI regroupé (portail, orchestrateur) | http://localhost:8080/swagger-ui.html |
 | **Via la gateway** : GraphQL, WSDL, SSE | http://localhost:8080/api/graphql, /api/cnam/ws/dossier-cnam.wsdl, /api/orchestrateur/workflows/flux |
 | Routes de la gateway | http://localhost:8080/actuator/gateway/routes |
@@ -141,8 +146,8 @@ Le dashboard démarre aussi sans les autres services. Les champs distants valent
 
 ## Lancer avec Docker
 
-[`docker-compose.yml`](docker-compose.yml) démarre l'API Gateway, les 5 services et PostgreSQL avec **une seule
-commande**, sur les mêmes ports qu'en local. **En production, seul le port 8080 (gateway) serait publié** : les ports
+[`docker-compose.yml`](docker-compose.yml) démarre le client web, l'API Gateway, les 5 services et PostgreSQL avec
+**une seule commande**, sur les mêmes ports qu'en local. **En production, seul le port 8080 (gateway) serait publié** : les ports
 des services ne le sont ici que pour le développement et les tests en accès direct.
 
 | Conteneur | Image | Port | Healthcheck |
@@ -154,11 +159,12 @@ des services ne le sont ici que pour le développement et les tests en accès di
 | `dashboard-medical` | `dashboard-medical-service` | 8083 | `GET /actuator/health` |
 | `orchestrateur` | `orchestrateur-service` | 8085 | `GET /actuator/health` |
 | `api-gateway` | `api-gateway` | 8080 | `GET /actuator/health` |
+| `web-client` | `web-client` (nginx) | 4200 | `wget http://127.0.0.1/` |
 | `capteur` | `capteur-simulator` (profil `capteur`) | – | – |
 
 - **Ordre de démarrage** imposé par `depends_on: condition: service_healthy` :
   `postgres` → `dossier-cnam`, `portail-patient`, `telemetrie` → `dashboard-medical` → `orchestrateur`, qui attend
-  que les 4 autres soient prêts → `api-gateway`, qui attend les 5 services.
+  que les 4 autres soient prêts → `api-gateway`, qui attend les 5 services → `web-client`.
 - **Healthchecks** : un service n'est « healthy » qu'une fois démarré ET ses données de test chargées. Les sondes
   d'actuator incluent `readinessState`. `telemetrie` est un service gRPC pur, sans serveur HTTP : plutôt que
   d'ajouter Tomcat et actuator juste pour la santé, l'image embarque `grpc_health_probe`, qui interroge le service
@@ -173,7 +179,8 @@ Copy-Item .env.example .env        # puis remplacer les "changer-moi"
 
 # Construire et démarrer (premier build : quelques minutes, Maven télécharge les dépendances)
 docker compose up --build -d
-docker compose ps                  # STATUS doit passer à "healthy" pour les 6 conteneurs (1 à 2 min)
+docker compose ps                  # STATUS doit passer à "healthy" pour les 8 conteneurs (1 à 2 min)
+                                   # puis http://localhost:4200
 
 # Logs
 docker compose logs -f orchestrateur
@@ -214,14 +221,30 @@ docker compose exec postgres psql -U postgres -d orchestrateur
 | dashboard-medical | 388 Mo / 512 Mo |
 | orchestrateur | 407 Mo / 512 Mo |
 | api-gateway | 308 Mo / 512 Mo |
+| web-client (nginx) | 13 Mo / 64 Mo |
 | postgres (5 bases) | 132 Mo |
 | **Total** | **≈ 2,1 Go** |
 
 Démarrage complet à froid (images déjà construites) : environ 75 s. Redémarrage avec des données existantes : environ 45 s.
 
+Après un redémarrage de la machine, si des services redémarrent en boucle (« health: starting »), c'est que
+`postgres` est resté arrêté : `docker compose up -d` le relance, et les services repartent.
+
 ## Scénario de démo : capteur → alerte → workflow → dashboard
 
-**En une commande** (les 5 services démarrés) : `.\docs\tests\e2e\demo.ps1`. Le script vérifie les services,
+**Avec le client web** (http://localhost:4200, stack Docker démarrée) :
+1. Médecin → « Alertes en direct » (subscription GraphQL ouverte).
+2. Dans un autre onglet, Accueil → « Simuler une alerte » (PAT-0001, CRITIQUE) : l'alerte puis l'intervention
+   apparaissent en direct côté médecin.
+3. Admin → « Workflows » : la frise des 5 étapes avance en direct (SSE) jusqu'à FACTUREE.
+4. Admin → « CNAM (SOAP) » : la feuille de soins, et l'onglet XML pour montrer l'enveloppe.
+5. `docker compose stop dossier-cnam` : la fiche patient reste affichée, la couverture est remplacée par
+   « Service indisponible » (réponse partielle) ; `docker compose start dossier-cnam` pour revenir.
+
+Le même parcours est automatisé par Playwright : `cd web-client; npm run e2e`. Captures d'écran :
+[`docs/captures/`](docs/captures/).
+
+**En ligne de commande** (les 5 services démarrés) : `.\docs\tests\e2e\demo.ps1`. Le script vérifie les services,
 lance le capteur en tachycardie sur PAT-0001, attend la fin des workflows, puis affiche leurs étapes, la fiche
 GraphQL du patient et les feuilles de soins de l'historique CNAM.
 
@@ -268,13 +291,15 @@ http://localhost:8080 (par exemple `.\docs\tests\rest\tester-rest.ps1 -ViaGatewa
 | GraphQL | [`docs/tests/graphql/tester-graphql.ps1`](docs/tests/graphql/tester-graphql.ps1) | Queries, mutations, erreurs et une subscription en WebSocket |
 | Orchestrateur | [`docs/tests/orchestrateur/tester-orchestrateur.ps1`](docs/tests/orchestrateur/tester-orchestrateur.ps1) | Déclenchement manuel, suivi des étapes, idempotence, relance, erreurs |
 | Bout en bout | [`docs/tests/e2e/demo.ps1`](docs/tests/e2e/demo.ps1) | Capteur → telemetrie → orchestrateur → CNAM, portail, dashboard |
+| Client web | `cd web-client; npm test` | 24 tests unitaires (Vitest) : SOAP, intercepteur, SSE, pipe DT, fiche partielle, frise |
+| Client web | `cd web-client; npm run e2e` | Playwright contre la stack Docker : RDV patient ; alerte simulée → en direct chez le médecin → FACTUREE chez l'admin |
 
 ## Structure du dépôt
 
 ```
 sahticonnect/
 ├── CLAUDE.md                     ← cadrage, règles métier, avancement
-├── docker-compose.yml            ← stack complète (5 services + PostgreSQL + capteur)
+├── docker-compose.yml            ← stack complète (client, gateway, 5 services, PostgreSQL, capteur)
 ├── .env.example                  ← modèle du .env (mots de passe des bases, ports publiés)
 ├── docker/postgres/init.sql      ← une base + un utilisateur par service
 ├── docs/
@@ -282,13 +307,15 @@ sahticonnect/
 │   ├── openapi/                  ← portail-patient.yaml, orchestrateur.yaml
 │   ├── graphql/                  ← dashboard-medical.graphqls
 │   ├── proto/                    ← telemetrie.proto
-│   └── tests/                    ← soap/, rest/, grpc/, graphql/, orchestrateur/, e2e/ : scripts de test
+│   ├── tests/                    ← soap/, rest/, grpc/, graphql/, orchestrateur/, e2e/ : scripts de test
+│   └── captures/                 ← captures d'écran du client web (Playwright)
 ├── dossier-cnam-service/         ← SOAP   :8081
 ├── portail-patient-service/      ← REST   :8082
 ├── dashboard-medical-service/    ← GraphQL :8083
 ├── telemetrie-service/           ← gRPC   :9090
 ├── orchestrateur-service/        ← REST + clients des 4 protocoles :8085
 ├── api-gateway/                  ← Spring Cloud Gateway :8080 (point d'entrée unique)
+├── web-client/                   ← Angular :4200 (client unique, n'appelle que la gateway)
 └── capteur-simulator/            ← Python (client gRPC)
 ```
 
