@@ -23,20 +23,24 @@ public class PatientController implements PatientsApi {
 
     private final PatientService patientService;
     private final PortailMapper mapper;
+    private final Appartenance appartenance;
 
     @Override
     public ResponseEntity<PatientDto> consulterPatient(String id) {
+        appartenance.verifier(id);
         return ResponseEntity.ok(mapper.versDto(patientService.consulter(id)));
     }
 
     @Override
     public ResponseEntity<PatientDto> modifierPatient(String id, PatientMiseAJourDto patientMiseAJour) {
+        appartenance.verifier(id);
         return ResponseEntity.ok(mapper.versDto(
                 patientService.modifierCoordonnees(id, mapper.versCoordonnees(patientMiseAJour))));
     }
 
     @Override
     public ResponseEntity<List<OrdonnanceDto>> listerOrdonnancesPatient(String id, Boolean actives) {
+        appartenance.verifier(id);
         return ResponseEntity.ok(patientService.ordonnances(id, Boolean.TRUE.equals(actives)).stream()
                 .map(mapper::versDto).toList());
     }

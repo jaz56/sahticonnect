@@ -18,9 +18,11 @@ public class UrgenceController implements UrgencesApi {
 
     private final AmbulanceService ambulanceService;
     private final PortailMapper mapper;
+    private final Appartenance appartenance;
 
     @Override
     public ResponseEntity<MissionAmbulanceDto> demanderAmbulance(DemandeAmbulanceDto demandeAmbulance) {
+        appartenance.verifier(demandeAmbulance.getIdentifiantPatient());
         MissionAmbulance mission = ambulanceService.demander(mapper.versDemande(demandeAmbulance));
         return ResponseEntity.created(URI.create("/urgences/ambulances/" + mission.getId()))
                 .body(mapper.versDto(mission));
@@ -28,6 +30,8 @@ public class UrgenceController implements UrgencesApi {
 
     @Override
     public ResponseEntity<MissionAmbulanceDto> consulterMissionAmbulance(String id) {
-        return ResponseEntity.ok(mapper.versDto(ambulanceService.consulter(id)));
+        MissionAmbulance mission = ambulanceService.consulter(id);
+        appartenance.verifier(mission.getPatient().getId());
+        return ResponseEntity.ok(mapper.versDto(mission));
     }
 }
