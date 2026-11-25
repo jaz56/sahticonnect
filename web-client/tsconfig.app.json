@@ -9,6 +9,7 @@
     "src/**/*.ts"
   ],
   "exclude": [
+    "e2e",
     "src/**/*.spec.ts"
   ]
 }

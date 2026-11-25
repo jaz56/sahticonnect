@@ -13,7 +13,8 @@
     "watch": "ng build --watch --configuration development",
     "pretest": "npm run generate",
     "test": "ng test --watch=false",
-    "e2e": "playwright test"
+    "e2e": "playwright test parcours",
+    "captures": "playwright test captures"
   },
   "private": true,
   "packageManager": "npm@10.9.9",
