@@ -15,7 +15,8 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** Services arrêtés (port fermé) : fallback des circuit breakers, au format du contrat. */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = "sahti.securite.active=false") // routage seul : la sécurité est testée dans securite/
 class FallbackIntegrationTest {
 
     @DynamicPropertySource

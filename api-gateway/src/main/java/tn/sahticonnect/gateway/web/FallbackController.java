@@ -12,10 +12,6 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.server.ServerWebExchange;
 
 import java.net.URI;
-import java.time.OffsetDateTime;
-import java.time.ZoneId;
-import java.time.temporal.ChronoUnit;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeoutException;
@@ -33,40 +29,15 @@ import java.util.concurrent.TimeoutException;
 @RestController
 public class FallbackController {
 
-    private static final ZoneId TUNIS = ZoneId.of("Africa/Tunis");
-
     @RequestMapping("/fallback/{service}")
     public ResponseEntity<Map<String, Object>> indisponible(@PathVariable String service, ServerWebExchange exchange) {
-        Map<String, Object> erreur = new LinkedHashMap<>();
-        erreur.put("horodatage", OffsetDateTime.now(TUNIS).truncatedTo(ChronoUnit.SECONDS).toString());
-        erreur.put("statut", 503);
-        erreur.put("code", "SERVICE_INDISPONIBLE");
-        erreur.put("message", message(service, exchange));
-        erreur.put("chemin", cheminOriginal(exchange));
-        erreur.put("service", service);
-        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).contentType(MediaType.APPLICATION_JSON).body(erreur);
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).contentType(MediaType.APPLICATION_JSON)
+                .body(ReponsesErreur.erreur(503, "SERVICE_INDISPONIBLE", message(service, exchange), cheminOriginal(exchange), service));
     }
 
     @RequestMapping(value = "/fallback/soap/{service}", produces = "text/xml;charset=UTF-8")
     public ResponseEntity<String> faultSoap(@PathVariable String service, ServerWebExchange exchange) {
-        String fault = """
-                <?xml version="1.0" encoding="UTF-8"?>
-                <SOAP-ENV:Envelope xmlns:SOAP-ENV="http://schemas.xmlsoap.org/soap/envelope/">
-                  <SOAP-ENV:Body>
-                    <SOAP-ENV:Fault>
-                      <faultcode>SOAP-ENV:Server</faultcode>
-                      <faultstring xml:lang="fr">%s</faultstring>
-                      <faultactor>api-gateway</faultactor>
-                      <detail>
-                        <gw:erreurGateway xmlns:gw="http://sahticonnect.tn/gateway">
-                          <gw:code>SERVICE_INDISPONIBLE</gw:code>
-                          <gw:service>%s</gw:service>
-                        </gw:erreurGateway>
-                      </detail>
-                    </SOAP-ENV:Fault>
-                  </SOAP-ENV:Body>
-                </SOAP-ENV:Envelope>
-                """.formatted(xml(message(service, exchange)), xml(service));
+        String fault = ReponsesErreur.faultSoap("Server", message(service, exchange), "SERVICE_INDISPONIBLE", service);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .contentType(MediaType.parseMediaType("text/xml;charset=UTF-8")).body(fault);
     }
@@ -90,9 +61,5 @@ public class FallbackController {
     private static String cheminOriginal(ServerWebExchange exchange) {
         Set<URI> urls = exchange.getAttribute(ServerWebExchangeUtils.GATEWAY_ORIGINAL_REQUEST_URL_ATTR);
         return urls != null && !urls.isEmpty() ? urls.iterator().next().getRawPath() : exchange.getRequest().getPath().value();
-    }
-
-    private static String xml(String texte) {
-        return texte.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 }

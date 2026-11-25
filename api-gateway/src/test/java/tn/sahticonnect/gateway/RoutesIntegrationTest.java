@@ -35,7 +35,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Les 4 routes HTTP contre un WireMock qui joue les 4 services : retrait du préfixe, en-têtes transmis, CORS,
  * X-Correlation-Id, timeout de 5 s, réécriture des contrats OpenAPI et relais du SSE sans buffering ni timeout.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = "sahti.securite.active=false") // routage seul : la sécurité est testée dans securite/
 class RoutesIntegrationTest {
 
     @RegisterExtension

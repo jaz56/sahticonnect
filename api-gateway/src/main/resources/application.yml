@@ -13,16 +13,7 @@ spring:
           httpclient:
             connect-timeout: 2000      # ms
             response-timeout: 5s       # délai max. entre deux lectures de la réponse du service
-          # ---------- CORS : le client Angular (http://localhost:4200), préflights compris ----------
-          globalcors:
-            add-to-simple-url-handler-mapping: true   # préflight accepté même hors route (ex. /actuator)
-            cors-configurations:
-              '[/**]':
-                allowed-origins: http://localhost:4200
-                allowed-methods: GET, POST, PUT, PATCH, DELETE, OPTIONS
-                allowed-headers: "*"
-                exposed-headers: X-Correlation-Id, Location
-                max-age: 3600
+          # CORS : géré par Spring Security (SecuriteConfig), pour que les réponses 401/403 aient aussi les en-têtes CORS
           # ---------- En-têtes X-Forwarded-* (Host, Port, Proto, Prefix) ajoutés aux requêtes relayées ----------
           # Depuis la 4.3 (CVE-2025-41235), ils ne sont ajoutés que si le client direct est « de confiance » :
           # la gateway étant le point d'entrée, on fait confiance aux adresses locales et aux réseaux Docker.
@@ -127,8 +118,25 @@ spring:
       resilience4j:
         disable-time-limiter: true
 
+  # ---------- Jetons OIDC de Keycloak (resource server) ----------
+  # Piège de l'issuer : le navigateur obtient ses jetons de http://localhost:8180 (issuer public), alors que la gateway
+  # joint Keycloak par une autre adresse en Docker (http://keycloak:8080). Les clés sont donc lues à l'adresse INTERNE
+  # (jwk-set-uri, sans découverte OIDC) et l'issuer est validé à sa valeur PUBLIQUE (issuer-uri).
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${KEYCLOAK_ISSUER:http://localhost:8180/realms/sahticonnect}
+          jwk-set-uri: ${KEYCLOAK_JWKS:http://localhost:8180/realms/sahticonnect/protocol/openid-connect/certs}
+          audiences: sahticonnect-gateway
+
 # Adresses des services (profil docker : noms des conteneurs)
 sahti:
+  # Sécurité (bonus Keycloak) : la gateway est le point d'application de la sécurité. false = tout est permis
+  # (développement local sans Keycloak) ; CORS et suppression des en-têtes d'identité restent actifs.
+  securite:
+    active: ${SAHTI_SECURITE_ACTIVE:true}
+    origines-cors: http://localhost:4200
   services:
     portail-patient: http://localhost:8082
     orchestrateur: http://localhost:8085
@@ -170,11 +178,6 @@ management:
     web:
       exposure:
         include: health, gateway
-      # l'accueil du client Angular affiche l'état de la gateway : les endpoints actuator ne passent pas par
-      # globalcors (autre handler mapping), ils ont leur propre configuration CORS
-      cors:
-        allowed-origins: http://localhost:4200
-        allowed-methods: GET
   endpoint:
     health:
       probes:

@@ -30,7 +30,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Le dashboard est remplacé par un petit serveur WebSocket (Reactor Netty) qui parle graphql-transport-ws :
  * connection_init → connection_ack, subscribe → next.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        properties = "sahti.securite.active=false") // routage seul : la sécurité est testée dans securite/
 class WebSocketGraphQlIntegrationTest {
 
     private static final String PROTOCOLE = "graphql-transport-ws";
