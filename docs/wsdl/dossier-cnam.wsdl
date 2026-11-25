@@ -42,6 +42,7 @@
         <xs:restriction base="xs:string">
             <xs:enumeration value="EMISE"/>
             <xs:enumeration value="CERTIFIEE"/>
+            <xs:enumeration value="ANNULEE"/>   <!-- annulée par annulerFeuilleDeSoins (compensation d'une saga) -->
         </xs:restriction>
     </xs:simpleType>
 
@@ -147,7 +148,7 @@
         </xs:sequence>
     </xs:complexType>
 
-    <!-- Détail d'une SOAP Fault : code stable (PATIENT_INCONNU, VIGNETTE_INVALIDE, ACTE_INVALIDE) + message -->
+    <!-- Détail d'une SOAP Fault : code stable (PATIENT_INCONNU, VIGNETTE_INVALIDE, ACTE_INVALIDE, FEUILLE_INCONNUE) + message -->
     <xs:complexType name="ErreurCnam">
         <xs:sequence>
             <xs:element name="code" type="xs:string"/>
@@ -256,22 +257,43 @@
 
     <xs:element name="comparerGarantiesFault" type="tns:ErreurCnam"/>
 
+    <!-- ===================== OPÉRATION 5 : annulerFeuilleDeSoins ===================== -->
+    <!-- Compensation (saga de l'orchestrateur) : annule une feuille de soins émise.
+         - feuille inconnue → fault Client FEUILLE_INCONNUE ;
+         - feuille déjà ANNULEE → renvoyée telle quelle, sans nouvelle écriture (idempotent : l'appelant peut réessayer) ;
+         - sinon statut ANNULEE, et une ligne « Annulation de la feuille … » est ajoutée à l'historique du patient. -->
+
+    <xs:element name="annulerFeuilleDeSoinsRequest">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="numero" type="xs:string"/>   <!-- FS-2026-000001 -->
+                <xs:element name="motif" type="xs:string"/>    <!-- ex. "Escalade vers ambulance WF-2026-000002" -->
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="annulerFeuilleDeSoinsResponse">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="feuilleDeSoins" type="tns:FeuilleDeSoins"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="annulerFeuilleDeSoinsFault" type="tns:ErreurCnam"/>
+
 </xs:schema>
   </wsdl:types>
-  <wsdl:message name="emettreFeuilleDeSoinsRequest">
-    <wsdl:part element="tns:emettreFeuilleDeSoinsRequest" name="emettreFeuilleDeSoinsRequest">
-    </wsdl:part>
-  </wsdl:message>
   <wsdl:message name="verifierDroitsCNAMRequest">
     <wsdl:part element="tns:verifierDroitsCNAMRequest" name="verifierDroitsCNAMRequest">
     </wsdl:part>
   </wsdl:message>
-  <wsdl:message name="verifierDroitsCNAMFault">
-    <wsdl:part element="tns:verifierDroitsCNAMFault" name="verifierDroitsCNAMFault">
+  <wsdl:message name="annulerFeuilleDeSoinsRequest">
+    <wsdl:part element="tns:annulerFeuilleDeSoinsRequest" name="annulerFeuilleDeSoinsRequest">
     </wsdl:part>
   </wsdl:message>
-  <wsdl:message name="consulterHistoriqueFault">
-    <wsdl:part element="tns:consulterHistoriqueFault" name="consulterHistoriqueFault">
+  <wsdl:message name="annulerFeuilleDeSoinsFault">
+    <wsdl:part element="tns:annulerFeuilleDeSoinsFault" name="annulerFeuilleDeSoinsFault">
     </wsdl:part>
   </wsdl:message>
   <wsdl:message name="consulterHistoriqueResponse">
@@ -286,6 +308,22 @@
     <wsdl:part element="tns:consulterHistoriqueRequest" name="consulterHistoriqueRequest">
     </wsdl:part>
   </wsdl:message>
+  <wsdl:message name="comparerGarantiesFault">
+    <wsdl:part element="tns:comparerGarantiesFault" name="comparerGarantiesFault">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="emettreFeuilleDeSoinsRequest">
+    <wsdl:part element="tns:emettreFeuilleDeSoinsRequest" name="emettreFeuilleDeSoinsRequest">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="verifierDroitsCNAMFault">
+    <wsdl:part element="tns:verifierDroitsCNAMFault" name="verifierDroitsCNAMFault">
+    </wsdl:part>
+  </wsdl:message>
+  <wsdl:message name="consulterHistoriqueFault">
+    <wsdl:part element="tns:consulterHistoriqueFault" name="consulterHistoriqueFault">
+    </wsdl:part>
+  </wsdl:message>
   <wsdl:message name="emettreFeuilleDeSoinsFault">
     <wsdl:part element="tns:emettreFeuilleDeSoinsFault" name="emettreFeuilleDeSoinsFault">
     </wsdl:part>
@@ -294,8 +332,8 @@
     <wsdl:part element="tns:emettreFeuilleDeSoinsResponse" name="emettreFeuilleDeSoinsResponse">
     </wsdl:part>
   </wsdl:message>
-  <wsdl:message name="comparerGarantiesFault">
-    <wsdl:part element="tns:comparerGarantiesFault" name="comparerGarantiesFault">
+  <wsdl:message name="annulerFeuilleDeSoinsResponse">
+    <wsdl:part element="tns:annulerFeuilleDeSoinsResponse" name="annulerFeuilleDeSoinsResponse">
     </wsdl:part>
   </wsdl:message>
   <wsdl:message name="comparerGarantiesResponse">
@@ -307,20 +345,20 @@
     </wsdl:part>
   </wsdl:message>
   <wsdl:portType name="DossierCnamPort">
-    <wsdl:operation name="emettreFeuilleDeSoins">
-      <wsdl:input message="tns:emettreFeuilleDeSoinsRequest" name="emettreFeuilleDeSoinsRequest">
-    </wsdl:input>
-      <wsdl:output message="tns:emettreFeuilleDeSoinsResponse" name="emettreFeuilleDeSoinsResponse">
-    </wsdl:output>
-      <wsdl:fault message="tns:emettreFeuilleDeSoinsFault" name="emettreFeuilleDeSoinsFault">
-    </wsdl:fault>
-    </wsdl:operation>
     <wsdl:operation name="verifierDroitsCNAM">
       <wsdl:input message="tns:verifierDroitsCNAMRequest" name="verifierDroitsCNAMRequest">
     </wsdl:input>
       <wsdl:output message="tns:verifierDroitsCNAMResponse" name="verifierDroitsCNAMResponse">
     </wsdl:output>
       <wsdl:fault message="tns:verifierDroitsCNAMFault" name="verifierDroitsCNAMFault">
+    </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="annulerFeuilleDeSoins">
+      <wsdl:input message="tns:annulerFeuilleDeSoinsRequest" name="annulerFeuilleDeSoinsRequest">
+    </wsdl:input>
+      <wsdl:output message="tns:annulerFeuilleDeSoinsResponse" name="annulerFeuilleDeSoinsResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:annulerFeuilleDeSoinsFault" name="annulerFeuilleDeSoinsFault">
     </wsdl:fault>
     </wsdl:operation>
     <wsdl:operation name="consulterHistorique">
@@ -339,21 +377,17 @@
       <wsdl:fault message="tns:comparerGarantiesFault" name="comparerGarantiesFault">
     </wsdl:fault>
     </wsdl:operation>
+    <wsdl:operation name="emettreFeuilleDeSoins">
+      <wsdl:input message="tns:emettreFeuilleDeSoinsRequest" name="emettreFeuilleDeSoinsRequest">
+    </wsdl:input>
+      <wsdl:output message="tns:emettreFeuilleDeSoinsResponse" name="emettreFeuilleDeSoinsResponse">
+    </wsdl:output>
+      <wsdl:fault message="tns:emettreFeuilleDeSoinsFault" name="emettreFeuilleDeSoinsFault">
+    </wsdl:fault>
+    </wsdl:operation>
   </wsdl:portType>
   <wsdl:binding name="DossierCnamPortSoap11" type="tns:DossierCnamPort">
     <soap:binding style="document" transport="http://schemas.xmlsoap.org/soap/http"/>
-    <wsdl:operation name="emettreFeuilleDeSoins">
-      <soap:operation soapAction=""/>
-      <wsdl:input name="emettreFeuilleDeSoinsRequest">
-        <soap:body use="literal"/>
-      </wsdl:input>
-      <wsdl:output name="emettreFeuilleDeSoinsResponse">
-        <soap:body use="literal"/>
-      </wsdl:output>
-      <wsdl:fault name="emettreFeuilleDeSoinsFault">
-        <soap:fault name="emettreFeuilleDeSoinsFault" use="literal"/>
-      </wsdl:fault>
-    </wsdl:operation>
     <wsdl:operation name="verifierDroitsCNAM">
       <soap:operation soapAction=""/>
       <wsdl:input name="verifierDroitsCNAMRequest">
@@ -364,6 +398,18 @@
       </wsdl:output>
       <wsdl:fault name="verifierDroitsCNAMFault">
         <soap:fault name="verifierDroitsCNAMFault" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="annulerFeuilleDeSoins">
+      <soap:operation soapAction=""/>
+      <wsdl:input name="annulerFeuilleDeSoinsRequest">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="annulerFeuilleDeSoinsResponse">
+        <soap:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="annulerFeuilleDeSoinsFault">
+        <soap:fault name="annulerFeuilleDeSoinsFault" use="literal"/>
       </wsdl:fault>
     </wsdl:operation>
     <wsdl:operation name="consulterHistorique">
@@ -388,6 +434,18 @@
       </wsdl:output>
       <wsdl:fault name="comparerGarantiesFault">
         <soap:fault name="comparerGarantiesFault" use="literal"/>
+      </wsdl:fault>
+    </wsdl:operation>
+    <wsdl:operation name="emettreFeuilleDeSoins">
+      <soap:operation soapAction=""/>
+      <wsdl:input name="emettreFeuilleDeSoinsRequest">
+        <soap:body use="literal"/>
+      </wsdl:input>
+      <wsdl:output name="emettreFeuilleDeSoinsResponse">
+        <soap:body use="literal"/>
+      </wsdl:output>
+      <wsdl:fault name="emettreFeuilleDeSoinsFault">
+        <soap:fault name="emettreFeuilleDeSoinsFault" use="literal"/>
       </wsdl:fault>
     </wsdl:operation>
   </wsdl:binding>

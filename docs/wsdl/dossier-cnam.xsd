@@ -44,6 +44,7 @@
         <xs:restriction base="xs:string">
             <xs:enumeration value="EMISE"/>
             <xs:enumeration value="CERTIFIEE"/>
+            <xs:enumeration value="ANNULEE"/>   <!-- annulée par annulerFeuilleDeSoins (compensation d'une saga) -->
         </xs:restriction>
     </xs:simpleType>
 
@@ -149,7 +150,7 @@
         </xs:sequence>
     </xs:complexType>
 
-    <!-- Détail d'une SOAP Fault : code stable (PATIENT_INCONNU, VIGNETTE_INVALIDE, ACTE_INVALIDE) + message -->
+    <!-- Détail d'une SOAP Fault : code stable (PATIENT_INCONNU, VIGNETTE_INVALIDE, ACTE_INVALIDE, FEUILLE_INCONNUE) + message -->
     <xs:complexType name="ErreurCnam">
         <xs:sequence>
             <xs:element name="code" type="xs:string"/>
@@ -257,5 +258,30 @@
     </xs:element>
 
     <xs:element name="comparerGarantiesFault" type="tns:ErreurCnam"/>
+
+    <!-- ===================== OPÉRATION 5 : annulerFeuilleDeSoins ===================== -->
+    <!-- Compensation (saga de l'orchestrateur) : annule une feuille de soins émise.
+         - feuille inconnue → fault Client FEUILLE_INCONNUE ;
+         - feuille déjà ANNULEE → renvoyée telle quelle, sans nouvelle écriture (idempotent : l'appelant peut réessayer) ;
+         - sinon statut ANNULEE, et une ligne « Annulation de la feuille … » est ajoutée à l'historique du patient. -->
+
+    <xs:element name="annulerFeuilleDeSoinsRequest">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="numero" type="xs:string"/>   <!-- FS-2026-000001 -->
+                <xs:element name="motif" type="xs:string"/>    <!-- ex. "Escalade vers ambulance WF-2026-000002" -->
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="annulerFeuilleDeSoinsResponse">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="feuilleDeSoins" type="tns:FeuilleDeSoins"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="annulerFeuilleDeSoinsFault" type="tns:ErreurCnam"/>
 
 </xs:schema>
