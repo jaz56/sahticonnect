@@ -1,5 +1,5 @@
-# SahtiConnect : l'API Gateway, les 5 services + PostgreSQL (une base par service dans un seul conteneur).
-# Point d'entrée : http://localhost:8080 (api-gateway). En production, SEUL ce port serait publié : les ports des
+# SahtiConnect : client web, API Gateway, 5 services + PostgreSQL (une base par service dans un seul conteneur).
+# Client web : http://localhost:4200 ; point d'entrée des API : http://localhost:8080 (api-gateway). En production, SEUL ce port serait publié : les ports des
 # services (8081…8085, 9090) ne le sont ici que pour le développement et les tests en accès direct.
 #
 #   Copy-Item .env.example .env        # une fois : mots de passe des bases
@@ -198,6 +198,25 @@ services:
     healthcheck:
       <<: *healthcheck
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+
+  # ---------- web-client : Angular servi par nginx (http://localhost:4200), qui n'appelle que la gateway ----------
+  web-client:
+    build:
+      context: .                                  # les contrats (docs/openapi, docs/graphql) servent au build
+      dockerfile: web-client/Dockerfile
+    image: sahticonnect/web-client
+    restart: on-failure
+    mem_limit: 64m
+    ports:
+      - "${WEB_PORT:-4200}:80"
+    depends_on:
+      api-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # ---------- capteur simulé : profil "capteur", non lancé par docker compose up ----------
   capteur:

@@ -1,0 +1,13 @@
+# Contexte = racine du dépôt : on n'envoie que le client et ses contrats
+*
+!web-client/
+!docs/openapi/
+!docs/graphql/
+web-client/node_modules/
+web-client/dist/
+web-client/.angular/
+web-client/src/app/api/
+web-client/src/app/graphql/generated.ts
+web-client/test-results/
+web-client/playwright-report/
+web-client/e2e/
