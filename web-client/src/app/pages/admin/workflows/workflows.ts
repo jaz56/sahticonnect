@@ -63,6 +63,14 @@ export default class Workflows {
         untracked(() => this.selectionId.set(id));
       }
     });
+    // resynchronisation à chaque (re)connexion du flux SSE : les événements émis avant l'ouverture du flux (ou pendant
+    // une coupure) ne sont pas rejoués par le serveur ; sans cela, un workflow terminé entre le chargement de la liste
+    // et la connexion resterait affiché à une étape intermédiaire
+    effect(() => {
+      if (this.flux.connecte()) {
+        untracked(() => this.charger(this.filtrePatient() ?? undefined, this.filtreEtat() ?? undefined));
+      }
+    });
 
     // flux SSE : chaque changement d'état d'un workflow remplace (ou ajoute) sa ligne
     this.flux.workflows$.pipe(takeUntilDestroyed(inject(DestroyRef))).subscribe((wf) => {

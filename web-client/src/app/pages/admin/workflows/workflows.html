@@ -37,8 +37,8 @@
               <span class="mono">{{ w.id }}</span> · {{ w.patientId }}
             </span>
             <span matListItemLine>
-              {{ w.niveau }} · {{ w.dateCreation | date: 'dd/MM HH:mm:ss' }} ·
-              <span class="etat" [class]="w.etat">{{ w.enCours ? 'en cours…' : w.etat }}</span>
+              {{ w.niveau }} · {{ w.dateCreation | date: 'dd/MM HH:mm' }} ·
+              @if (w.enCours) { <span class="etat">en cours…</span> } @else { <app-pastille [valeur]="w.etat" /> }
             </span>
           </a>
         } @empty {
@@ -51,7 +51,11 @@
       <mat-card appearance="outlined" class="detail" data-testid="detail-workflow" [attr.data-etat]="wf.etat">
         <mat-card-header>
           <mat-icon matCardAvatar>account_tree</mat-icon>
-          <mat-card-title>{{ wf.id }} <app-pastille [valeur]="wf.etat" [libelle]="wf.enCours ? 'EN COURS' : wf.etat" /></mat-card-title>
+          <mat-card-title>
+            {{ wf.id }}
+            @if (wf.enCours) { <app-pastille valeur="EN_ATTENTE" libelle="En cours" /> }
+            @else { <app-pastille [valeur]="wf.etat" data-testid="badge-etat" /> }
+          </mat-card-title>
           <mat-card-subtitle>
             Alerte <span class="mono">{{ wf.alerteId }}</span> · {{ wf.patientId }} · {{ wf.niveau }}
             · {{ wf.seuilFranchi }} · créé le {{ wf.dateCreation | date }}
@@ -68,7 +72,14 @@
             <div><span class="libelle">Fiche</span> <span class="mono">{{ wf.interventionId ?? '—' }}</span></div>
             <div><span class="libelle">Feuille de soins</span> <span class="mono">{{ wf.numeroFeuilleSoins ?? '—' }}</span> {{ wf.montantTotal | dt }}</div>
             <div><span class="libelle">Facturation</span> <app-pastille [valeur]="wf.statutFacturation" /></div>
-            @if (wf.etapeEnEchec) { <div><span class="libelle">Étape en échec</span> {{ libelleEtape(wf.etapeEnEchec) }}</div> }
+            @if (wf.etapeEnEchec) {
+              <div><span class="libelle">Étape en échec</span> {{ libelleEtape(wf.etapeEnEchec) }}{{ wf.enCompensation ? ' (compensation)' : '' }}</div>
+            }
+            @if (wf.compensePar) {
+              <div><span class="libelle">Compensé par (escalade)</span>
+                <a class="mono" href="" (click)="$event.preventDefault(); selectionId.set(wf.compensePar!)">{{ wf.compensePar }}</a>
+              </div>
+            }
           </div>
         </mat-card-content>
         @if (wf.etat === 'ECHEC' && !wf.enCours) {

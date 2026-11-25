@@ -13,6 +13,8 @@ const LIBELLES: Record<string, string> = {
   FACTUREE: 'Facturée',
   A_REGULARISER: 'À régulariser',
   ECHEC: 'Échec',
+  COMPENSE: 'Compensé',
+  ANNULEE: 'Annulée',
 };
 
 /** Pastille colorée d'un niveau (risque, alerte) ou d'un statut ; la couleur suit le code (styles.scss). */

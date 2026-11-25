@@ -22,3 +22,24 @@
     </li>
   }
 </ol>
+
+@if (compensations().length > 0) {
+  <h4 class="titre-compensation">
+    Compensation (saga d'escalade{{ workflow().compensePar ? ' déclenchée par ' + workflow().compensePar : '' }}) :
+    ordre inverse des étapes
+  </h4>
+  <ol class="frise compensation" aria-label="Compensations">
+    @for (c of compensations(); track $index) {
+      <li class="case" [class]="c.statut" [attr.data-compensation]="c.nom" [attr.data-statut]="c.statut">
+        <div class="puce"><mat-icon>{{ c.statut === 'OK' ? 'undo' : icone(c.statut) }}</mat-icon></div>
+        <div class="texte">
+          <div class="nom">{{ c.libelle }}</div>
+          @if (c.etape; as e) {
+            <div class="meta">{{ e.statut }} · {{ e.dureeMs | number: '1.0-0' }} ms · {{ e.horodatage | date: 'HH:mm:ss' }}</div>
+            @if (e.message) { <div class="message" [matTooltip]="e.message">{{ e.message }}</div> }
+          }
+        </div>
+      </li>
+    }
+  </ol>
+}

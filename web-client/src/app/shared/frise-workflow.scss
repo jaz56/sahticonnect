@@ -1,6 +1,7 @@
 .frise {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 8px;
   list-style: none;
   margin: 0;
@@ -68,8 +69,20 @@
   to { transform: rotate(360deg); }
 }
 
+.titre-compensation {
+  margin: 16px 0 8px;
+  font: var(--mat-sys-title-small);
+  color: #5b3f8c;
+}
+
+.frise.compensation .case.OK {
+  border-color: #5b3f8c;
+  background: #efe7fb;
+  .puce mat-icon { color: #5b3f8c; }
+}
+
 @media (max-width: 900px) {
   .frise {
-    grid-template-columns: 1fr;
+    grid-auto-flow: row;
   }
 }

@@ -53,3 +53,27 @@ test('« Simuler une alerte » : l\'alerte apparaît en direct côté médecin, 
   await expect(admin.getByTestId('detail-workflow')).toHaveAttribute('data-etat', 'FACTUREE', { timeout: 30_000 });
   await expect(admin.locator('[data-etape="FACTUREE"]')).toHaveAttribute('data-statut', 'OK');
 });
+
+test('saga d\'escalade : ELEVEE puis CRITIQUE → le workflow ELEVEE est « Compensé », la CRITIQUE passe par ESCALADE', async ({ page }) => {
+  // 1. alerte ELEVEE : RDV d'urgence, fiche, feuille CS 1 → FACTUREE
+  const elevee = await simulerAlerte(page, 'PAT-0004', 'ELEVEE');
+  await page.goto(`/admin/workflows?id=${elevee.workflowId}`);
+  await expect(page.getByTestId('detail-workflow')).toHaveAttribute('data-etat', 'FACTUREE', { timeout: 30_000 });
+
+  // 2. alerte CRITIQUE du même patient, quelques minutes plus tard : l'ambulance remplace le RDV
+  const critique = await simulerAlerte(page, 'PAT-0004', 'CRITIQUE');
+  await page.goto(`/admin/workflows?id=${critique.workflowId}`);
+  await expect(page.getByTestId('detail-workflow')).toHaveAttribute('data-etat', 'FACTUREE', { timeout: 30_000 });
+  await expect(page.locator('[data-etape="ESCALADE"]')).toHaveAttribute('data-statut', 'OK');
+  await expect(page.locator('[data-etape="ESCALADE"]')).toContainText(`${elevee.workflowId} compensé`);
+
+  // 3. le workflow ELEVEE est compensé : badge, et les 3 compensations dans l'ordre inverse
+  await page.goto(`/admin/workflows?id=${elevee.workflowId}`);
+  const detail = page.getByTestId('detail-workflow');
+  await expect(detail).toHaveAttribute('data-etat', 'COMPENSE', { timeout: 15_000 });
+  await expect(detail.getByTestId('badge-etat')).toHaveText('Compensé');
+  await expect(detail.locator('[data-compensation]')).toHaveCount(3);
+  const ordre = await detail.locator('[data-compensation]').evaluateAll((cases) => cases.map((c) => c.getAttribute('data-compensation')));
+  expect(ordre).toEqual(['FACTUREE', 'FICHE_PUBLIEE', 'INTERVENTION_DECLENCHEE']);
+  await expect(detail).toContainText(critique.workflowId);
+});

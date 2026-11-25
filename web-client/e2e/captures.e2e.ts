@@ -68,3 +68,13 @@ test('CNAM (SOAP)', async ({ page }) => {
   await page.getByRole('tab', { name: /Réponse brute/ }).click();
   await page.screenshot({ path: `${DOSSIER}/08-cnam-fault-xml.png`, fullPage: true });
 });
+
+test('saga d\'escalade : workflow compensé', async ({ page }) => {
+  const elevee = await simulerAlerte(page, 'PAT-0005', 'ELEVEE');
+  await page.goto(`/admin/workflows?id=${elevee.workflowId}`);
+  await expect(page.getByTestId('detail-workflow')).toHaveAttribute('data-etat', 'FACTUREE', { timeout: 30_000 });
+  await simulerAlerte(page, 'PAT-0005', 'CRITIQUE');
+  await page.goto(`/admin/workflows?id=${elevee.workflowId}`);
+  await expect(page.getByTestId('detail-workflow')).toHaveAttribute('data-etat', 'COMPENSE', { timeout: 30_000 });
+  await page.screenshot({ path: `${DOSSIER}/10-saga-compensation.png`, fullPage: true });
+});

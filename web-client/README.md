@@ -19,7 +19,7 @@ du haut, mémorisés dans le `localStorage`. Chaque rôle a son menu.
 | Tableau de bord | Médecin | GraphQL `patients(filtre)` | Patients avec badge de risque, filtres service / pathologie / niveau |
 | Fiche patient | Médecin | GraphQL `patient(id)` + `historiqueSoins` + `resoudreAlerte` | **Une seule requête** : profil, couverture (SOAP), constantes (gRPC), alertes, traitements, interventions. Graphique des constantes (Chart.js) rafraîchi toutes les 5 s, historique paginé, bouton « Résoudre » |
 | Alertes en direct | Médecin | GraphQL **subscriptions** (WebSocket) | `nouvelleAlerte` → liste en temps réel + notification colorée ; `nouvelleIntervention` → fiche qui apparaît |
-| Workflows | Admin | REST `/workflows` + **SSE** `/workflows/flux` | Liste filtrée, frise des 5 étapes (statut, durée, message) mise à jour en direct, « Relancer » si ECHEC |
+| Workflows | Admin | REST `/workflows` + **SSE** `/workflows/flux` | Liste filtrée, frise des 5 étapes (statut, durée, message) mise à jour en direct, « Relancer » si ECHEC. Saga d'escalade : badge « Compensé », étape ESCALADE du workflow CRITIQUE, ligne des compensations (ordre inverse) |
 | CNAM (SOAP) | Admin | **SOAP** `/api/cnam/ws` | Les 4 opérations, résultat lisible, Fault avec son code, onglet « XML » (enveloppe envoyée, réponse brute) |
 
 ### Comment chaque protocole est consommé
@@ -61,7 +61,7 @@ Prises par Playwright contre la stack Docker (`npm run captures`), dans [`docs/c
 | ![Tableau de bord](../docs/captures/03-tableau-de-bord.png) Tableau de bord (GraphQL) | ![Fiche patient](../docs/captures/04-fiche-patient.png) Fiche patient (GraphQL) |
 | ![Alertes en direct](../docs/captures/05-alertes-direct.png) Alertes en direct (subscriptions) | ![Workflows](../docs/captures/06-workflows.png) Workflows (REST + SSE) |
 | ![CNAM](../docs/captures/07-cnam-soap.png) CNAM (SOAP) | ![Fault SOAP](../docs/captures/08-cnam-fault-xml.png) SOAP Fault et XML brut |
-| ![Réponse partielle](../docs/captures/09-reponse-partielle.png) Réponse partielle : dossier-cnam arrêté, seule la couverture est remplacée par la puce | |
+| ![Réponse partielle](../docs/captures/09-reponse-partielle.png) Réponse partielle : dossier-cnam arrêté, seule la couverture est remplacée par la puce | ![Saga](../docs/captures/10-saga-compensation.png) Saga d'escalade : workflow ELEVEE « Compensé », compensations en ordre inverse |
 
 ## Contrat
 
@@ -104,7 +104,7 @@ npm test                   # 24 tests unitaires (Vitest) :
                            #  - pipe dt ; flux SSE (événements, reconnexion avec délai croissant, désabonnement) ;
                            #  - composants : fiche patient avec réponse partielle (puces), frise du workflow (statuts, relance)
 
-# Bonus Playwright, contre la stack Docker complète (docker compose up -d)
+# Bonus Playwright, contre la stack Docker complète (docker compose up -d) ; inclut la saga d'escalade (badge « Compensé »)
 npx playwright install chromium   # une fois
 npm run e2e                # un patient prend un RDV ; « Simuler une alerte » → alerte en direct côté médecin
                            # (WebSocket) → workflow FACTUREE côté admin (SSE)

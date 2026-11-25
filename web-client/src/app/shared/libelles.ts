@@ -15,6 +15,14 @@ export const LIBELLES_ETAPES: Record<string, string> = {
   INTERVENTION_DECLENCHEE: 'Intervention déclenchée',
   FICHE_PUBLIEE: 'Fiche publiée',
   FACTUREE: 'Facturée',
+  ESCALADE: 'Escalade',
+};
+
+/** Ce que défait la compensation de chaque étape (saga d'escalade). */
+export const LIBELLES_COMPENSATIONS: Record<string, string> = {
+  FACTUREE: 'Feuille de soins annulée (SOAP)',
+  FICHE_PUBLIEE: 'Fiche compensée, alerte résolue (GraphQL)',
+  INTERVENTION_DECLENCHEE: "RDV d'urgence annulé (REST)",
 };
 
 /** Les 5 étapes du workflow d'alerte, dans l'ordre. */

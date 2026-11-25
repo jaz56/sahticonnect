@@ -3,7 +3,7 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Etape, Workflow } from '../api/orchestrateur';
-import { ETAPES_WORKFLOW, LIBELLES_ETAPES } from './libelles';
+import { ETAPES_WORKFLOW, LIBELLES_COMPENSATIONS, LIBELLES_ETAPES } from './libelles';
 
 export interface CaseFrise {
   nom: string;
@@ -15,7 +15,9 @@ export interface CaseFrise {
 
 /**
  * Frise des 5 étapes d'un workflow : statut, durée et message de la dernière exécution de chaque étape
- * (une étape relancée apparaît avec son numéro de tentative).
+ * (une étape relancée apparaît avec son numéro de tentative). Saga d'escalade : l'étape ESCALADE d'un workflow
+ * CRITIQUE s'insère avant l'intervention ; les compensations d'un workflow ELEVEE forment une seconde ligne,
+ * dans l'ordre où elles ont été exécutées (l'inverse des étapes d'origine).
  */
 @Component({
   selector: 'app-frise-workflow',
@@ -28,10 +30,15 @@ export class FriseWorkflow {
 
   readonly cases = computed<CaseFrise[]>(() => {
     const wf = this.workflow();
+    const executions = (wf.etapes ?? []).filter((e) => e.type !== 'COMPENSATION');
+    const noms: string[] = [...ETAPES_WORKFLOW];
+    if (executions.some((e) => e.nom === 'ESCALADE')) {
+      noms.splice(2, 0, 'ESCALADE');
+    }
     let suivanteMarquee = false;
-    return ETAPES_WORKFLOW.map((nom) => {
+    return noms.map((nom) => {
       // dernière exécution de l'étape (les relances ajoutent des étapes)
-      const etape = [...(wf.etapes ?? [])].reverse().find((e) => e.nom === nom);
+      const etape = [...executions].reverse().find((e) => e.nom === nom);
       let statut: string = etape?.statut ?? 'A_VENIR';
       if (!etape && wf.enCours && !suivanteMarquee) {
         statut = 'EN_COURS';
@@ -40,6 +47,13 @@ export class FriseWorkflow {
       return { nom, libelle: LIBELLES_ETAPES[nom], statut, etape };
     });
   });
+
+  /** Compensations exécutées (saga), dans l'ordre d'exécution. */
+  readonly compensations = computed<CaseFrise[]>(() =>
+    (this.workflow().etapes ?? [])
+      .filter((e) => e.type === 'COMPENSATION')
+      .map((e) => ({ nom: e.nom, libelle: LIBELLES_COMPENSATIONS[e.nom] ?? e.nom, statut: e.statut, etape: e })),
+  );
 
   protected icone(statut: string): string {
     switch (statut) {

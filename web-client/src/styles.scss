@@ -118,6 +118,9 @@ table.tableau {
 .pastille.MODERE, .pastille.EN_ATTENTE { color: var(--sahti-modere); background: var(--sahti-modere-fond); }
 .pastille.FAIBLE, .pastille.FACTUREE, .pastille.RESOLUE, .pastille.OK, .pastille.CONFIRME, .pastille.TERMINEE { color: var(--sahti-faible); background: var(--sahti-faible-fond); }
 
+// annulé par compensation (saga) : ni succès ni échec
+.pastille.COMPENSE, .pastille.ANNULEE, .pastille.ANNULE { color: #5b3f8c; background: #efe7fb; }
+
 // ===================== Snackbars =====================
 
 .snack-erreur { --mat-snack-bar-container-color: #5f1410; }

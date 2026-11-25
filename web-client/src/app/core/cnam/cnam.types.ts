@@ -7,7 +7,7 @@ export const NAMESPACE_CNAM = 'http://sahticonnect.tn/cnam';
 
 export type LettreCle = 'C' | 'CS' | 'V' | 'K' | 'B' | 'Z';
 export type Filiere = 'PUBLIQUE' | 'PRIVEE' | 'REMBOURSEMENT';
-export type StatutFeuille = 'EMISE' | 'CERTIFIEE';
+export type StatutFeuille = 'EMISE' | 'CERTIFIEE' | 'ANNULEE';
 
 /** Valeurs fictives des lettres-clés (DT), pour l'affichage des estimations. */
 export const VALEURS_LETTRES_CLES: Record<LettreCle, number> = { C: 45, CS: 60, V: 55, K: 3, B: 0.3, Z: 2 };
