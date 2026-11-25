@@ -98,6 +98,11 @@ spring:
               uri: ${sahti.services.dashboard-medical}
               predicates:
                 - Path=/api/graphql
+              # GraphQL agrège plusieurs services : quand dossier-cnam est en panne, le dashboard attend jusqu'à
+              # 2 × 3 s (vignette puis droits) avant de renvoyer sa réponse PARTIELLE. Avec 5 s, la gateway couperait
+              # avant et le client recevrait un 503 au lieu des données disponibles.
+              metadata:
+                response-timeout: 10000
               filters:
                 - SetPath=/graphql
                 - name: CircuitBreaker

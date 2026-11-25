@@ -14,7 +14,8 @@ CORS, identifiant de corrélation, timeouts, circuit breakers et Swagger UI regr
   - **`X-Correlation-Id`** : repris de la requête s'il est fourni (et valide), sinon généré. Il est transmis au service,
     renvoyé dans la réponse et écrit dans le journal de la gateway :
     `[3f2c…] GET /api/portail/patients/PAT-0001 → portail-patient 200 OK (12 ms)`.
-  - **Timeout de réponse** : 5 s, désactivé pour le flux SSE et les WebSocket.
+  - **Timeout de réponse** : 5 s ; 10 s pour GraphQL (réponses partielles, voir Choix techniques) ; désactivé pour le
+    flux SSE et les WebSocket.
   - **Circuit breaker par route**, avec un repli au format du contrat quand un service ne répond pas.
   - **Swagger UI regroupé** et **actuator** (`/actuator/health`, `/actuator/gateway/routes`).
 
@@ -25,7 +26,7 @@ CORS, identifiant de corrélation, timeouts, circuit breakers et Swagger UI regr
 | `portail-patient` | `/api/portail/**` | `portail-patient:8082/**` | REST |
 | `orchestrateur-flux` | `/api/orchestrateur/workflows/flux` | `orchestrateur:8085/workflows/flux` | SSE : relayé au fil de l'eau, `response-timeout: -1` |
 | `orchestrateur` | `/api/orchestrateur/**` | `orchestrateur:8085/**` | REST |
-| `dashboard-medical` | `/api/graphql` | `dashboard-medical:8083/graphql` | GraphQL en HTTP **et** en WebSocket (`graphql-transport-ws`) |
+| `dashboard-medical` | `/api/graphql` | `dashboard-medical:8083/graphql` | GraphQL en HTTP **et** en WebSocket (`graphql-transport-ws`), `response-timeout: 10000` |
 | `dossier-cnam` | `/api/cnam/ws/**` | `dossier-cnam:8081/ws/**` | SOAP et WSDL (`/api/cnam/ws/dossier-cnam.wsdl`) |
 | `portail-patient-openapi` | `/api/portail/openapi/**` | `portail-patient:8082/openapi/**` | contrat relu pour Swagger UI, `servers` réécrit |
 | `orchestrateur-openapi` | `/api/orchestrateur/openapi/**` | `orchestrateur:8085/openapi/**` | idem |
@@ -103,7 +104,7 @@ docker build -t sahticonnect/api-gateway .
 ## Tester
 
 ```powershell
-# 24 tests :
+# 26 tests :
 #  - RoutesIntegrationTest (WireMock joue les 4 services) : chaque route et le retrait du préfixe, en-têtes
 #    X-Forwarded-* (et ceux envoyés par le client ignorés), préflight CORS accepté / refusé, en-têtes exposés,
 #    X-Correlation-Id généré / conservé / remplacé s'il est invalide, timeout de 5 s → 503, SSE relayé sans buffering
@@ -137,7 +138,10 @@ En plus des tests, vérifié à la main contre la stack Docker : WSDL via la gat
 - **Routes déclarées en YAML** (lisibles et visibles dans `/actuator/gateway/routes`). Un seul filtre écrit en Java :
   `ServeursOpenApi`.
 - **Timeouts** : délai de connexion 2 s, délai de réponse 5 s par le client HTTP Netty, désactivé par route
-  (`metadata.response-timeout: -1`) pour le SSE. Le TimeLimiter de Resilience4j est désactivé : il couperait aussi
+  (`metadata.response-timeout: -1`) pour le SSE. **10 s pour GraphQL** : quand dossier-cnam est en panne, le dashboard
+  attend jusqu'à 2 × 3 s (vignette puis droits) avant de renvoyer sa réponse partielle. Avec 5 s, la gateway coupait
+  avant et le client recevait un 503 au lieu des données disponibles (constaté avec le client Angular, corrigé et testé).
+  Règle : le délai d'une route d'agrégation couvre la somme des délais des appels qu'elle enchaîne. Le TimeLimiter de Resilience4j est désactivé : il couperait aussi
   le SSE et les WebSocket. Le circuit breaker ne compte pas un flux long comme un « appel lent ».
 - **Circuit breaker** (Resilience4j, une instance par route) : 50 % d'échecs sur 10 appels → ouvert 30 s. Pendant ce
   temps, la gateway répond tout de suite 503 au lieu d'attendre le délai à chaque appel.

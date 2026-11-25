@@ -204,16 +204,27 @@ class RoutesIntegrationTest {
 
     @Test
     void serviceTropLent_timeout5s_fallback503() {
-        services.stubFor(post("/graphql").withRequestBody(matching(".*lent.*"))
-                .willReturn(okJson("{\"data\":{}}").withFixedDelay(6_000)));
+        services.stubFor(get("/ordonnances-lentes").willReturn(okJson("[]").withFixedDelay(6_000)));
 
-        client.post().uri("/api/graphql").contentType(MediaType.APPLICATION_JSON).bodyValue("{\"query\":\"{ lent }\"}")
-                .exchange()
+        client.get().uri("/api/portail/ordonnances-lentes").exchange()
                 .expectStatus().isEqualTo(503)
                 .expectBody()
                 .jsonPath("$.code").isEqualTo("SERVICE_INDISPONIBLE")
-                .jsonPath("$.service").isEqualTo("dashboard-medical")
+                .jsonPath("$.service").isEqualTo("portail-patient")
                 .jsonPath("$.message").value(m -> assertThat((String) m).contains("délai"));
+    }
+
+    @Test
+    void graphql_reponseApres6s_attendueJusqua10s() {
+        // réponse partielle du dashboard quand un service distant est en panne (2 appels × 3 s) : pas de 503
+        services.stubFor(post("/graphql").withRequestBody(matching(".*partielle.*"))
+                .willReturn(okJson("{\"data\":{\"patient\":{\"couvert\":null}},\"errors\":[{\"message\":\"Service dossier-cnam indisponible\"}]}")
+                        .withFixedDelay(6_500)));
+
+        client.post().uri("/api/graphql").contentType(MediaType.APPLICATION_JSON).bodyValue("{\"query\":\"{ partielle }\"}")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody().jsonPath("$.errors[0].message").isEqualTo("Service dossier-cnam indisponible");
     }
 
     // ===================== SSE : ni buffering, ni timeout =====================
