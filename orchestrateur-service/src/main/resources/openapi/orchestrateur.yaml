@@ -21,6 +21,20 @@ info:
     Les workflows sont lancés automatiquement à chaque alerte reçue ; ces endpoints servent à les suivre,
     à les déclencher à la main (démo, tests) et à relancer un workflow en échec.
 
+    **Escalade avec compensation (saga).** Quand une alerte CRITIQUE arrive pour un patient qui a, dans la fenêtre
+    `sahti.escalade.fenetre` (30 min), un workflow ELEVEE dont le RDV d'urgence est encore à venir (CONFIRME),
+    ce workflow est d'abord **compensé**, dans l'ordre inverse de ses étapes réussies :
+
+    | Étape compensée | Service appelé | Opération |
+    |---|---|---|
+    | FACTUREE | dossier-cnam (SOAP) | `annulerFeuilleDeSoins` |
+    | FICHE_PUBLIEE | dashboard-medical (GraphQL) | `mettreAJourIntervention` (COMPENSE, ANNULEE) puis `resoudreAlerte` |
+    | INTERVENTION_DECLENCHEE | portail-patient (REST) | `DELETE /rendez-vous/{id}` |
+
+    Chaque compensation est tracée comme une étape de type `COMPENSATION` (même `nom` que l'étape annulée).
+    Le workflow ELEVEE passe à `COMPENSE` (ou `ECHEC` si une compensation échoue : la relance reprend les
+    compensations manquantes). Le workflow CRITIQUE trace une étape `ESCALADE`, puis déclenche l'ambulance.
+
     Conventions :
     - identifiant de workflow `WF-AAAA-NNNNNN` ; un seul workflow par alerte (`alerteId` unique) ;
     - dates au format ISO 8601 (`2026-11-24T09:30:00+01:00`) ;
@@ -33,7 +47,7 @@ info:
     | 400 | `REQUETE_INVALIDE` | Requête non conforme au contrat (détail champ par champ dans `details`) |
     | 404 | `WORKFLOW_INTROUVABLE` | Workflow inconnu |
     | 404 | `RESSOURCE_INTROUVABLE` | Adresse (route) inexistante |
-    | 409 | `WORKFLOW_NON_RELANCABLE` | Relance d'un workflow qui n'est pas en ECHEC, ou en cours d'exécution |
+    | 409 | `WORKFLOW_NON_RELANCABLE` | Relance d'un workflow qui n'est pas en ECHEC (ex. FACTUREE, COMPENSE), ou en cours d'exécution |
     | 500 | `ERREUR_INTERNE` | Erreur inattendue du service |
 servers:
   - url: http://localhost:8085
@@ -226,11 +240,21 @@ components:
       enum: [FREQUENCE_CARDIAQUE, SPO2, TENSION_SYSTOLIQUE, TENSION_DIASTOLIQUE, TEMPERATURE, CHUTE]
     EtatWorkflow:
       type: string
-      description: Dernière étape réussie, ou ECHEC (voir etapeEnEchec)
-      enum: [ALERTE_RECUE, DROITS_VERIFIES, INTERVENTION_DECLENCHEE, FICHE_PUBLIEE, FACTUREE, ECHEC]
+      description: |
+        Dernière étape réussie, ou ECHEC (voir etapeEnEchec), ou COMPENSE : workflow annulé par compensation
+        lors d'une escalade (voir compensePar)
+      enum: [ALERTE_RECUE, DROITS_VERIFIES, INTERVENTION_DECLENCHEE, FICHE_PUBLIEE, FACTUREE, ECHEC, COMPENSE]
     NomEtape:
       type: string
-      enum: [ALERTE_RECUE, DROITS_VERIFIES, INTERVENTION_DECLENCHEE, FICHE_PUBLIEE, FACTUREE]
+      description: |
+        Les 5 étapes du workflow, plus ESCALADE (workflow CRITIQUE qui a compensé un workflow ELEVEE du même patient)
+      enum: [ALERTE_RECUE, DROITS_VERIFIES, ESCALADE, INTERVENTION_DECLENCHEE, FICHE_PUBLIEE, FACTUREE]
+    TypeEtape:
+      type: string
+      description: |
+        EXECUTION : étape normale du workflow ; COMPENSATION : annulation de l'étape de même nom (saga),
+        exécutée dans l'ordre inverse des étapes réussies
+      enum: [EXECUTION, COMPENSATION]
     StatutEtape:
       type: string
       description: |
@@ -239,7 +263,8 @@ components:
       enum: [OK, ECHEC, IGNOREE]
     StatutFacturation:
       type: string
-      enum: [EN_ATTENTE, FACTUREE, A_REGULARISER]
+      description: ANNULEE quand la feuille de soins a été annulée par compensation
+      enum: [EN_ATTENTE, FACTUREE, A_REGULARISER, ANNULEE]
     TypeIntervention:
       type: string
       enum: [AMBULANCE, RDV_URGENCE, TELECONSULTATION, VISITE_DOMICILE]
@@ -278,6 +303,8 @@ components:
       properties:
         nom:
           $ref: '#/components/schemas/NomEtape'
+        type:
+          $ref: '#/components/schemas/TypeEtape'
         statut:
           $ref: '#/components/schemas/StatutEtape'
         horodatage:
@@ -322,6 +349,14 @@ components:
         enCours:
           type: boolean
           description: Vrai pendant l'exécution (initiale ou relance)
+        enCompensation:
+          type: boolean
+          description: |
+            Vrai quand le workflow est (ou a été) compensé : une relance reprend alors les compensations manquantes
+        compensePar:
+          type: string
+          pattern: '^WF-\d{4}-\d{6}$'
+          description: Workflow CRITIQUE dont l'escalade a déclenché la compensation de ce workflow
         couvert:
           type: boolean
           description: Droits CNAM ouverts ; absent si la vérification a échoué (couverture inconnue)
