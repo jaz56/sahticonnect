@@ -7,7 +7,9 @@
     1. vérifie que les 5 services répondent ;
     2. lance le capteur simulé (tachycardie) ;
     3. attend la fin des workflows déclenchés par ses alertes ;
-    4. affiche le workflow, la fiche GraphQL du patient et la feuille de soins (SOAP).
+    4. affiche le workflow, la fiche GraphQL du patient et la feuille de soins (SOAP) ;
+    5. saga d'escalade : l'alerte ELEVEE puis CRITIQUE de la tachycardie → le workflow ELEVEE est COMPENSE
+       (feuille CS 1 ANNULEE, RDV d'urgence ANNULE), une seule facture active (celle de l'ambulance).
     Compatible Windows PowerShell 5.1 et PowerShell 7.
     -ViaGateway : toutes les URL HTTP passent par l'API Gateway (http://localhost:8080/api/...). Le capteur, lui,
     parle gRPC directement à telemetrie : la gateway n'expose pas gRPC (ce n'est pas un client navigateur).
@@ -135,12 +137,33 @@ if ($nouveaux.Count -eq 0) { Write-Host "Aucun workflow : l'orchestrateur est-il
 # ===================== 4. Résultat =====================
 Write-Host ""
 Write-Host "4. Workflows" -ForegroundColor Cyan
+$details = @()
 foreach ($wf in ($nouveaux | Sort-Object id)) {
     $detail = (Get-Utf8 "$Orchestrateur/workflows/$($wf.id)") | ConvertFrom-Json
-    Write-Host ("   {0}  alerte {1} {2} ({3})  →  {4}" -f $detail.id, $detail.niveau, $detail.alerteId, $detail.seuilFranchi, $detail.etat) `
-        -ForegroundColor $(if ($detail.etat -eq "FACTUREE") { "Green" } else { "Yellow" })
+    $details += $detail
+    $couleur = switch ($detail.etat) { "FACTUREE" { "Green" } "COMPENSE" { "Magenta" } default { "Yellow" } }
+    $suffixe = if ($detail.compensePar) { "  (compensé par $($detail.compensePar))" } else { "" }
+    Write-Host ("   {0}  alerte {1} {2} ({3})  →  {4}{5}" -f $detail.id, $detail.niveau, $detail.alerteId, $detail.seuilFranchi, $detail.etat, $suffixe) `
+        -ForegroundColor $couleur
     foreach ($e in $detail.etapes) {
-        Write-Host ("      {0,-24} {1,-7} {2,5} ms  {3}" -f $e.nom, $e.statut, $e.dureeMs, $e.message)
+        # compensation (saga) : même nom que l'étape annulée, marquée ↩
+        $nom = if ($e.type -eq "COMPENSATION") { "↩ " + $e.nom } else { $e.nom }
+        Write-Host ("      {0,-26} {1,-7} {2,5} ms  {3}" -f $nom, $e.statut, $e.dureeMs, $e.message) `
+            -ForegroundColor $(if ($e.type -eq "COMPENSATION") { "Magenta" } else { "Gray" })
+    }
+}
+
+# ===================== 5. Saga d'escalade =====================
+$compenses = @($details | Where-Object { $_.etat -eq "COMPENSE" })
+Write-Host ""
+Write-Host "5. Saga d'escalade (alerte ELEVEE puis CRITIQUE du même patient)" -ForegroundColor Cyan
+if ($compenses.Count -eq 0) {
+    Write-Host "   Aucun workflow compensé (pas d'alerte ELEVEE suivie d'une CRITIQUE avec un RDV à venir)."
+} else {
+    foreach ($c in $compenses) {
+        $rdv = (Get-Utf8 "$Portail/rendez-vous/$($c.referenceExterne)") | ConvertFrom-Json
+        Write-Host ("   {0} COMPENSE par {1} : RDV {2} → {3}, feuille {4} annulée, facturation {5}" -f $c.id, $c.compensePar,
+            $rdv.id, $rdv.statut, $c.numeroFeuilleSoins, $c.statutFacturation) -ForegroundColor Magenta
     }
 }
 
@@ -160,14 +183,24 @@ $soap = @"
 [xml]$historique = Get-Utf8 $Cnam "POST" $soap "text/xml"
 $espaces = New-Object System.Xml.XmlNamespaceManager($historique.NameTable)
 $espaces.AddNamespace("c", "http://sahticonnect.tn/cnam")
+$actives = @()
 foreach ($numero in $feuilles) {
-    $entree = $historique.SelectSingleNode("//c:entrees[c:numeroFeuilleSoins='$numero']", $espaces)
-    if ($entree) {
-        $actes = ($entree.SelectNodes("c:actes", $espaces) | ForEach-Object { "$($_.lettreCle) $($_.coefficient)" }) -join " + "
-        Write-Host ("      {0}  {1}  {2}  actes : {3}" -f $numero, $entree.date, $entree.diagnostic, $actes) -ForegroundColor Green
-    } else {
+    # émission, puis, si la feuille a été annulée par compensation, la ligne « Annulation de la feuille … »
+    $entrees = @($historique.SelectNodes("//c:entrees[c:numeroFeuilleSoins='$numero']", $espaces))
+    if ($entrees.Count -eq 0) {
         Write-Host "      $numero absente de l'historique" -ForegroundColor Red
+        continue
     }
+    $annulee = @($entrees | Where-Object { $_.diagnostic -like "Annulation de la feuille*" }).Count -gt 0
+    foreach ($entree in $entrees) {
+        $actes = ($entree.SelectNodes("c:actes", $espaces) | ForEach-Object { "$($_.lettreCle) $($_.coefficient)" }) -join " + "
+        Write-Host ("      {0}  {1}  {2}  actes : {3}" -f $numero, $entree.date, $entree.diagnostic, $actes) `
+            -ForegroundColor $(if ($annulee) { "Magenta" } else { "Green" })
+    }
+    if (-not $annulee) { $actives += $numero }
 }
+$montants = @($details | Where-Object { $actives -contains $_.numeroFeuilleSoins } | ForEach-Object { "{0} ({1:N3} DT)" -f $_.numeroFeuilleSoins, $_.montantTotal })
+Write-Host ""
+Write-Host ("   Facture(s) active(s) : {0} → {1}" -f $actives.Count, ($montants -join ", ")) -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Démo terminée." -ForegroundColor Green
