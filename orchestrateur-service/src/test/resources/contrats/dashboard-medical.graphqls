@@ -70,12 +70,16 @@ enum EtatWorkflow {
   FICHE_PUBLIEE
   FACTUREE
   ECHEC
+  "Intervention annulée par compensation (saga) : un RDV d'urgence remplacé par une ambulance lors d'une escalade."
+  COMPENSE
 }
 
 enum StatutFacturation {
   EN_ATTENTE
   FACTUREE
   A_REGULARISER
+  "Feuille de soins annulée (SOAP annulerFeuilleDeSoins) lors d'une compensation."
+  ANNULEE
 }
 
 enum LettreCle {
