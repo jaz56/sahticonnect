@@ -10,9 +10,16 @@
 param(
     [string]$Url = "http://localhost:8081/ws",
     [switch]$ViaGateway,                              # toutes les URL passent par l'API Gateway
-    [string]$Gateway = "http://localhost:8080"
+    [string]$Gateway = "http://localhost:8080",
+    [string]$Utilisateur = "admin",                   # compte Keycloak (mot de passe demo) pour -ViaGateway
+    [string]$Keycloak = "http://localhost:8180"
 )
 if ($ViaGateway) { $Url = "$Gateway/api/cnam/ws" }
+if ($ViaGateway) {
+    # la gateway exige un jeton : client Keycloak « scripts » (password grant, réservé aux tests)
+    . (Join-Path $PSScriptRoot "..\jeton-keycloak.ps1")
+    Enable-JetonGateway -Utilisateur $Utilisateur -Keycloak $Keycloak
+}
 
 $ErrorActionPreference = "Stop"
 
@@ -57,7 +64,7 @@ foreach ($fichier in $fichiers) {
     $corps = [System.IO.File]::ReadAllBytes($fichier.FullName)
     try {
         $reponse = Invoke-WebRequest -Uri $Url -Method Post -Body $corps `
-            -ContentType "text/xml; charset=utf-8" -Headers @{ SOAPAction = '""' } -UseBasicParsing
+            -ContentType "text/xml; charset=utf-8" -Headers $(if ($ViaGateway) { (Get-EntetesAuth) + @{ SOAPAction = '""' } } else { @{ SOAPAction = '""' } }) -UseBasicParsing
         $texte = [System.Text.Encoding]::UTF8.GetString($reponse.RawContentStream.ToArray())
         Write-Host "HTTP $($reponse.StatusCode)" -ForegroundColor Green
     } catch [System.Net.WebException] {

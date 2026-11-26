@@ -32,11 +32,18 @@ param(
     [int]$DureeCapteur = 30,
     [switch]$Docker,
     [switch]$ViaGateway,                              # toutes les URL passent par l'API Gateway
-    [string]$Gateway = "http://localhost:8080"
+    [string]$Gateway = "http://localhost:8080",
+    [string]$Utilisateur = "admin",                   # compte Keycloak (mot de passe demo) pour -ViaGateway
+    [string]$Keycloak = "http://localhost:8180"
 )
 if ($ViaGateway) {
     $Cnam = "$Gateway/api/cnam/ws"; $Portail = "$Gateway/api/portail"
     $Dashboard = "$Gateway/api/graphql"; $Orchestrateur = "$Gateway/api/orchestrateur"
+}
+if ($ViaGateway) {
+    # la gateway exige un jeton : client Keycloak « scripts » (password grant, réservé aux tests)
+    . (Join-Path $PSScriptRoot "..\jeton-keycloak.ps1")
+    Enable-JetonGateway -Utilisateur $Utilisateur -Keycloak $Keycloak
 }
 
 $ErrorActionPreference = "Stop"

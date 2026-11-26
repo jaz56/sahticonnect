@@ -15,9 +15,16 @@
 param(
     [string]$Url = "http://localhost:8083/graphql",
     [switch]$ViaGateway,                              # toutes les URL passent par l'API Gateway
-    [string]$Gateway = "http://localhost:8080"
+    [string]$Gateway = "http://localhost:8080",
+    [string]$Utilisateur = "admin",                   # compte Keycloak (mot de passe demo) pour -ViaGateway
+    [string]$Keycloak = "http://localhost:8180"
 )
 if ($ViaGateway) { $Url = "$Gateway/api/graphql" }
+if ($ViaGateway) {
+    # la gateway exige un jeton : client Keycloak « scripts » (password grant, réservé aux tests)
+    . (Join-Path $PSScriptRoot "..\jeton-keycloak.ps1")
+    Enable-JetonGateway -Utilisateur $Utilisateur -Keycloak $Keycloak
+}
 
 $ErrorActionPreference = "Stop"
 $script:echecs = 0
@@ -75,7 +82,10 @@ function Test-Subscription {
     }
 
     try {
-        $null = $ws.ConnectAsync([Uri]($Url -replace "^http", "ws"), $annulation).GetAwaiter().GetResult()
+        # via la gateway : le jeton voyage dans l'URL de l'upgrade (pas d'en-tête Authorization côté navigateur)
+        $urlWs = $Url -replace "^http", "ws"
+        if ($ViaGateway) { $urlWs += "?access_token=$(Get-JetonCourant)" }
+        $null = $ws.ConnectAsync([Uri]$urlWs, $annulation).GetAwaiter().GetResult()
         Send-Message @{ type = "connection_init" }
         $ack = Receive-Message 5000
         if ($ack.type -ne "connection_ack") { throw "pas de connection_ack" }
