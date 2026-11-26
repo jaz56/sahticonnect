@@ -110,7 +110,7 @@ Une base PostgreSQL par service (database-per-service).
     DELETE /rendez-vous (409 + TERMINE → IGNOREE). Idempotentes, retry `appel-idempotent` ; échec → ECHEC,
     `POST /relancer` reprend les compensations manquantes.
   - Migration PostgreSQL : `schema.sql` supprime les contraintes CHECK des enums (Hibernate ne les met pas à jour).
-- [ ] Bonus 2 : sécurité Keycloak (la gateway est le point d'application)
+- [x] Bonus 2 : sécurité Keycloak (la gateway est le point d'application)
   - Keycloak 26.8.2 (compose, port 8180, `start-dev --import-realm`, `docker/keycloak/sahticonnect-realm.json`) :
     rôles PATIENT/MEDECIN/ADMIN, client public `web-client` (Code + PKCE), client `scripts` (password grant, RÉSERVÉ
     aux scripts de test), 9 comptes mot de passe `demo` (ahmed…hedi → claim `patient_id`, dr.chaabane/haddad/kallel, admin),
