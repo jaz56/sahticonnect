@@ -10,6 +10,7 @@ import org.springframework.test.web.reactive.server.WebTestClient;
 
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.time.Duration;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,8 +31,13 @@ class FallbackIntegrationTest {
         }
     }
 
-    @Autowired
     private WebTestClient client;
+
+    /** Délai du client de test > timeout de la gateway (5 s) : la 1re requête d'un contexte froid peut être lente sur une machine chargée. */
+    @Autowired
+    void setClient(WebTestClient client) {
+        this.client = client.mutate().responseTimeout(Duration.ofSeconds(15)).build();
+    }
 
     @Test
     void rest_503AuFormatErreur_avecService() {
