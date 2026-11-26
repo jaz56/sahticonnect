@@ -20,7 +20,7 @@ Chaque service a sa propre base de données (*database-per-service*).
 ```
  Présentation              web-client (Angular) :4200   un écran par rôle : patient, médecin, admin
                                      │ HTTP + WebSocket + SSE (un seul hôte : http://localhost:8080)
- Point d'entrée              api-gateway :8080   CORS, X-Correlation-Id, timeouts, circuit breakers
+ Point d'entrée              api-gateway :8080   JWT (Keycloak :8180), CORS, X-Correlation-Id, timeouts, circuit breakers
               ┌──────────────┬───────┴──────┬─────────────────────┐
               ▼ /api/portail ▼ /api/graphql ▼ /api/orchestrateur  ▼ /api/cnam/ws
               REST           GraphQL + WS   REST + SSE            SOAP + WSDL   (gRPC : non exposé)
@@ -165,6 +165,7 @@ des services ne le sont ici que pour le développement et les tests en accès di
 | `orchestrateur` | `orchestrateur-service` | 8085 | `GET /actuator/health` |
 | `api-gateway` | `api-gateway` | 8080 | `GET /actuator/health` |
 | `web-client` | `web-client` (nginx) | 4200 | `wget http://127.0.0.1/` |
+| `keycloak` | `quay.io/keycloak/keycloak:26.8.2` (realm importé) | 8180 | `GET :9000/health/ready` |
 | `capteur` | `capteur-simulator` (profil `capteur`) | – | – |
 
 - **Ordre de démarrage** imposé par `depends_on: condition: service_healthy` :
@@ -235,15 +236,85 @@ Démarrage complet à froid (images déjà construites) : environ 75 s. Redémar
 Après un redémarrage de la machine, si des services redémarrent en boucle (« health: starting »), c'est que
 `postgres` est resté arrêté : `docker compose up -d` le relance, et les services repartent.
 
+## Sécurité (bonus) : Keycloak, OIDC et JWT
+
+**La gateway est le point d'application de la sécurité.** Keycloak (`quay.io/keycloak/keycloak:26.8.2`, port 8180)
+authentifie les utilisateurs et signe les jetons ; la gateway vérifie chaque jeton et applique la matrice des droits ;
+les services internes ne sont joignables que par le réseau Docker et font confiance aux en-têtes posés par la gateway.
+
+```
+ Navigateur (Angular, angular-auth-oidc-client)            Keycloak :8180 (realm sahticonnect)
+   1. « Se connecter » ─ redirection /auth?code_challenge=S256(verifier) ──►  page de connexion (ahmed / demo)
+   2. ◄──────────────── redirection http://localhost:4200/?code=…&state=… ─┘
+   3. POST /token (code + code_verifier) ────────────────────────────────►  vérifie S256(verifier) = challenge
+   4. ◄──────────────── access_token (JWT RS256, 5 min) + refresh_token ──┘  (renouvelé 30 s avant l'expiration)
+   5. GET /api/portail/… Authorization: Bearer <JWT>
+          ▼
+ api-gateway :8080 (resource server)   clés publiques JWKS récupérées UNE fois (http://keycloak:8080/…/certs), en cache
+   - signature RS256, exp, iss = http://localhost:8180/realms/sahticonnect, aud ∋ sahticonnect-gateway
+   - rôles realm_access.roles → matrice ci-dessous (401 NON_AUTHENTIFIE / 403 ACCES_REFUSE, SOAP Fault sur la CNAM)
+   - supprime X-Patient-Id et X-Roles venus du client ; ajoute X-Roles, et X-Patient-Id = patient_id pour un PATIENT
+          ▼ réseau Docker
+ portail-patient (contrôle d'appartenance : X-Patient-Id ≠ patient demandé → 403), dashboard, orchestrateur, CNAM
+```
+
+**Le piège de l'issuer** : dans le réseau Docker, la gateway joint Keycloak par `http://keycloak:8080`, le navigateur
+par `http://localhost:8180`. Le claim `iss` doit être le même pour tous : `KC_HOSTNAME=http://localhost:8180` fixe
+l'adresse publique, et la gateway télécharge les clés par l'adresse interne (`jwk-set-uri`) tout en exigeant l'issuer
+public (`issuer-uri`, sans découverte). Vérifié : un jeton demandé par `keycloak:8080` porte bien `iss = localhost:8180`.
+
+**Utilisateurs de démo** (mot de passe `demo` pour tous ; console Keycloak : http://localhost:8180, `admin` /
+`KEYCLOAK_ADMIN_PASSWORD` du `.env`) :
+
+| Utilisateur | Rôle | `patient_id` | Voit |
+|---|---|---|---|
+| `ahmed`, `leila`, `karim`, `sonia`, `hedi` | PATIENT | PAT-0001 … PAT-0005 | Son dossier seulement (profil, RDV, ordonnances, ambulance) |
+| `dr.chaabane`, `dr.haddad`, `dr.kallel` | MEDECIN | – | Dossiers des patients, tableau de bord, fiches, alertes en direct |
+| `admin` | ADMIN | – | Tout, plus workflows (saga) et CNAM (SOAP) |
+
+**Matrice des droits** (appliquée par la gateway ; le client web masque en plus les menus et garde ses routes,
+pour le confort seulement) :
+
+| Route | PATIENT | MEDECIN | ADMIN | Sans jeton |
+|---|---|---|---|---|
+| `/api/portail/**` | ✅ ses données (403 sinon) | ✅ | ✅ | 401 |
+| `/api/graphql` (HTTP et WebSocket) | 403 | ✅ | ✅ | 401 |
+| `POST /api/orchestrateur/workflows/declencher` | 403 | ✅ | ✅ | 401 |
+| `/api/orchestrateur/**` (workflows, SSE, relance) | 403 | 403 | ✅ | 401 |
+| `/api/cnam/ws/**` (SOAP) | Fault 403 | Fault 403 | ✅ | Fault 401 |
+| `GET` WSDL, Swagger UI, YAML des contrats, `/actuator/health`, fallbacks | public | public | public | public |
+
+- **Navigateur** : Authorization Code + PKCE (client public `web-client`, sans secret). WebSocket GraphQL : le
+  navigateur ne peut pas poser d'en-tête sur une WebSocket, le jeton passe donc dans l'URL de l'upgrade
+  (`?access_token=`), accepté pour cette seule route, retiré avant le relais et masqué dans les logs. SSE : pas de
+  jeton dans l'URL, `@microsoft/fetch-event-source` envoie l'en-tête `Authorization`.
+- **Scripts de test** : le client `scripts` (Direct Access Grants, « password grant ») est **réservé aux scripts de
+  test** (`-ViaGateway`) : il échange identifiant et mot de passe contre un jeton, ce qui est déconseillé pour une
+  vraie application (l'application voit le mot de passe ; OAuth 2.1 retire ce flux). Le client `web-client` le refuse.
+- **Local sans Keycloak** : `SAHTI_SECURITE_ACTIVE=false` pour la gateway (`sahti.securite.active`), activé en Docker.
+
+**Limites et perspectives** :
+- *Confiance dans le réseau interne* : les services croient `X-Patient-Id` et `X-Roles` parce que seule la gateway
+  peut les joindre (réseau Docker, ports non publiés en production). En *zero trust*, chaque service validerait
+  lui-même le JWT (resource server), et les appels de service à service (orchestrateur → portail…) utiliseraient un
+  jeton *client credentials* propre à l'orchestrateur, ou du mTLS entre conteneurs.
+- *Audience* : un seul public `sahticonnect-gateway` ; avec des services resource servers, une audience par service
+  limiterait la portée d'un jeton volé.
+- *Révocation* : un jeton reste valable jusqu'à son expiration (5 min) même après déconnexion : c'est le prix d'une
+  vérification locale sans appel à Keycloak (l'introspection à chaque requête l'éviterait, au prix de la latence).
+- Keycloak tourne en mode `start-dev` (HTTP, base H2 intégrée) : en production, HTTPS, base PostgreSQL et
+  `start --optimized`.
+
 ## Scénario de démo : capteur → alerte → workflow → dashboard
 
-**Avec le client web** (http://localhost:4200, stack Docker démarrée) :
-1. Médecin → « Alertes en direct » (subscription GraphQL ouverte).
-2. Dans un autre onglet, Accueil → « Simuler une alerte » (PAT-0001, CRITIQUE) : l'alerte puis l'intervention
-   apparaissent en direct côté médecin.
-3. Admin → « Workflows » : la frise des 5 étapes avance en direct (SSE) jusqu'à FACTUREE.
-4. Admin → « CNAM (SOAP) » : la feuille de soins, et l'onglet XML pour montrer l'enveloppe.
-5. `docker compose stop dossier-cnam` : la fiche patient reste affichée, la couverture est remplacée par
+**Avec le client web** (http://localhost:4200, stack Docker démarrée ; connexion Keycloak, mot de passe `demo`) :
+1. Connecté en `dr.chaabane` : « Alertes en direct » (subscription GraphQL ouverte).
+2. Dans une fenêtre de navigation privée, connecté en `admin` : Accueil → « Simuler une alerte » (PAT-0001,
+   CRITIQUE) : l'alerte puis l'intervention apparaissent en direct côté médecin.
+3. `admin` → « Workflows » : la frise des 5 étapes avance en direct (SSE) jusqu'à FACTUREE.
+4. `admin` → « CNAM (SOAP) » : la feuille de soins, et l'onglet XML pour montrer l'enveloppe.
+5. Connecté en `ahmed` : seulement « Mon dossier » (PAT-0001) ; `/medecin/tableau-de-bord` affiche « Accès refusé ».
+6. `docker compose stop dossier-cnam` : la fiche patient reste affichée, la couverture est remplacée par
    « Service indisponible » (réponse partielle) ; `docker compose start dossier-cnam` pour revenir.
 
 Le même parcours est automatisé par Playwright : `cd web-client; npm run e2e`. Captures d'écran :
@@ -285,7 +356,9 @@ Pas à pas :
 
 Chaque service se teste avec `.\mvnw.cmd verify` : tests unitaires et d'intégration. Avec les services démarrés,
 il y a en plus les scripts ci-dessous. Chacun accepte **`-ViaGateway`** : toutes ses URL passent alors par
-http://localhost:8080 (par exemple `.\docs\tests\rest\tester-rest.ps1 -ViaGateway`).
+http://localhost:8080 (par exemple `.\docs\tests\rest\tester-rest.ps1 -ViaGateway`). Le script obtient alors un
+jeton Keycloak avec le client `scripts` ([`docs/tests/jeton-keycloak.ps1`](docs/tests/jeton-keycloak.ps1), compte
+`admin` par défaut, `-Utilisateur dr.chaabane` pour un autre) et l'envoie à chaque requête, renouvelé avant expiration.
 
 | Service | Script / ressource | Contenu |
 |---|---|---|
@@ -298,8 +371,9 @@ http://localhost:8080 (par exemple `.\docs\tests\rest\tester-rest.ps1 -ViaGatewa
 | GraphQL | [`docs/tests/graphql/tester-graphql.ps1`](docs/tests/graphql/tester-graphql.ps1) | Queries, mutations, erreurs et une subscription en WebSocket |
 | Orchestrateur | [`docs/tests/orchestrateur/tester-orchestrateur.ps1`](docs/tests/orchestrateur/tester-orchestrateur.ps1) | Déclenchement manuel, suivi des étapes, idempotence, relance, erreurs |
 | Bout en bout | [`docs/tests/e2e/demo.ps1`](docs/tests/e2e/demo.ps1) | Capteur → telemetrie → orchestrateur → CNAM, portail, dashboard |
-| Client web | `cd web-client; npm test` | 24 tests unitaires (Vitest) : SOAP, intercepteur, SSE, pipe DT, fiche partielle, frise |
-| Client web | `cd web-client; npm run e2e` | Playwright contre la stack Docker : RDV patient ; alerte simulée → en direct chez le médecin → FACTUREE chez l'admin |
+| Client web | `cd web-client; npm test` | 36 tests unitaires (Vitest) : SOAP, intercepteurs (erreurs, jeton), gardes de rôle, SSE, pipe DT, fiche partielle, frise |
+| Client web | `cd web-client; npm run e2e` | Playwright contre la stack Docker, avec connexion Keycloak : ahmed prend un RDV ; ahmed bloqué sur l'écran médecin et sur le dossier d'un autre (403) ; alerte en direct chez dr.chaabane → FACTUREE chez admin ; saga chez admin |
+| Sécurité | `cd api-gateway; .\mvnw.cmd verify` | Matrice rôle × route, 401/403 (JSON et SOAP Fault), X-Patient-Id injecté et usurpation supprimée, jeton WebSocket, routes publiques |
 
 ## Structure du dépôt
 
@@ -309,6 +383,7 @@ sahticonnect/
 ├── docker-compose.yml            ← stack complète (client, gateway, 5 services, PostgreSQL, capteur)
 ├── .env.example                  ← modèle du .env (mots de passe des bases, ports publiés)
 ├── docker/postgres/init.sql      ← une base + un utilisateur par service
+├── docker/keycloak/              ← sahticonnect-realm.json : rôles, clients, utilisateurs de démo (importé au démarrage)
 ├── docs/
 │   ├── wsdl/                     ← dossier-cnam.xsd (contrat) + dossier-cnam.wsdl (exporté)
 │   ├── openapi/                  ← portail-patient.yaml, orchestrateur.yaml

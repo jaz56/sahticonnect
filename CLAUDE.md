@@ -1,4 +1,4 @@
-# SahtiConnect – Projet Service Oriented Computing (3ING GINF, ENICarthage)
+﻿# SahtiConnect – Projet Service Oriented Computing (3ING GINF, ENICarthage)
 
 Projet individuel. Plateforme Smart Healthcare : 4 services, chacun avec un protocole différent,
 un orchestrateur, une API Gateway et un client web Angular. Tout est dockerisé.
@@ -110,6 +110,21 @@ Une base PostgreSQL par service (database-per-service).
     DELETE /rendez-vous (409 + TERMINE → IGNOREE). Idempotentes, retry `appel-idempotent` ; échec → ECHEC,
     `POST /relancer` reprend les compensations manquantes.
   - Migration PostgreSQL : `schema.sql` supprime les contraintes CHECK des enums (Hibernate ne les met pas à jour).
+- [ ] Bonus 2 : sécurité Keycloak (la gateway est le point d'application)
+  - Keycloak 26.8.2 (compose, port 8180, `start-dev --import-realm`, `docker/keycloak/sahticonnect-realm.json`) :
+    rôles PATIENT/MEDECIN/ADMIN, client public `web-client` (Code + PKCE), client `scripts` (password grant, RÉSERVÉ
+    aux scripts de test), 9 comptes mot de passe `demo` (ahmed…hedi → claim `patient_id`, dr.chaabane/haddad/kallel, admin),
+    audience `sahticonnect-gateway`. Issuer public fixé par `KC_HOSTNAME=http://localhost:8180` ; la gateway lit les
+    clés par `http://keycloak:8080` (`jwk-set-uri`) et exige l'issuer public.
+  - Gateway resource server (`sahti.securite.active`, false en local sans Keycloak) : matrice portail P/M/A, graphql M/A,
+    declencher M/A, orchestrateur et CNAM ADMIN (WSDL public) ; 401 `NON_AUTHENTIFIE` / 403 `ACCES_REFUSE` (Erreur ou
+    SOAP Fault) ; X-Patient-Id/X-Roles du client toujours supprimés, X-Roles ajouté, X-Patient-Id = patient_id (PATIENT) ;
+    `?access_token=` accepté seulement pour l'upgrade WebSocket `/api/graphql`, retiré et masqué.
+  - Portail : contrôle d'appartenance par X-Patient-Id → 403 `ACCES_REFUSE` (ajouté au contrat) ; sans en-tête, accès complet.
+  - Angular : angular-auth-oidc-client 22 (Code + PKCE, refresh), intercepteur Bearer (gateway seulement), `roleGuard`,
+    menu selon les rôles du jeton, patient limité à son `patient_id`, écran `/acces-refuse` ; WebSocket `?access_token=` ;
+    SSE via `@microsoft/fetch-event-source` (en-tête Authorization).
+  - Scripts `-ViaGateway` : jeton via `docs/tests/jeton-keycloak.ps1` (client `scripts`, `-Utilisateur`, admin par défaut).
 - [ ] Étape 8 : tests et documentation
 
 Ordre de réalisation : 7 → 5 → 6 → bonus (Keycloak) → 8.

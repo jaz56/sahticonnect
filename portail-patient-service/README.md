@@ -65,6 +65,20 @@ La liste complète figure dans `info.description` du contrat.
 }
 ```
 
+### Contrôle d'appartenance (bonus sécurité)
+
+L'authentification est faite par la gateway (JWT Keycloak). Pour un utilisateur seulement PATIENT, elle pose
+`X-Patient-Id` = claim `patient_id` du jeton (et supprime toujours celui qu'enverrait le client). Le portail
+vérifie alors que le patient demandé est bien le sien (`web/Appartenance`) :
+
+- `GET`/`PUT /patients/{id}`, ordonnances, `POST /rendez-vous`, `GET /rendez-vous?patientId=`, un RDV ou une
+  ambulance d'un autre patient → **403 `ACCES_REFUSE`** (nouveau code, ajouté au contrat) ;
+- sans `?patientId=`, la liste des RDV est filtrée sur le patient connecté ;
+- **sans en-tête** (médecin, admin, orchestrateur sur le réseau interne) : accès complet, comme avant.
+
+Le portail fait confiance à l'en-tête parce que seule la gateway peut le joindre (réseau Docker) : voir les limites
+dans le README racine (zero trust, client credentials, mTLS).
+
 ### Données de test
 
 Elles sont chargées au démarrage et calculées par rapport à la date du jour.
@@ -115,6 +129,7 @@ docker run -p 8082:8082 -e DB_URL=jdbc:postgresql://host.docker.internal:5432/po
 ```powershell
 # Tests unitaires des services (horloge fixe), tests MockMvc de tous les endpoints et codes d'erreur,
 # test de concurrence (2 réservations simultanées → une 201, une 409)
+# AppartenanceIntegrationTest (7) : X-Patient-Id d'un autre patient → 403 ACCES_REFUSE, sans en-tête → accès complet
 .\mvnw.cmd verify
 
 # Service démarré : profil → créneaux → RDV → modification → annulation → urgence → ambulance → erreurs

@@ -2,14 +2,16 @@
 
 Point d'entrée unique de SahtiConnect : le client web (Angular, port 4200) ne connaît qu'une adresse,
 http://localhost:8080. La gateway relaie chaque appel vers le bon service, et ajoute les fonctions transverses :
-CORS, identifiant de corrélation, timeouts, circuit breakers et Swagger UI regroupé.
+**sécurité (JWT Keycloak)**, CORS, identifiant de corrélation, timeouts, circuit breakers et Swagger UI regroupé.
 
 ## Rôle
 
 - **Routage** : `/api/<service>/…` → le service concerné ; le préfixe est retiré avant de relayer.
 - **Protocoles relayés** : REST, GraphQL (HTTP et WebSocket pour les subscriptions), SOAP (et le WSDL), flux SSE.
 - **Fonctions transverses** :
-  - **CORS** : seul http://localhost:4200 (le futur client Angular) est autorisé, préflights `OPTIONS` compris. La même
+  - **Sécurité** (bonus, voir la section dédiée) : resource server OAuth 2, jetons JWT signés par Keycloak, matrice
+    des droits par rôle, identité propagée aux services (`X-Roles`, `X-Patient-Id`).
+  - **CORS** : seul http://localhost:4200 (le client Angular) est autorisé, préflights `OPTIONS` compris. La même
     vérification d'origine protège la poignée de main WebSocket : un autre site reçoit 403.
   - **`X-Correlation-Id`** : repris de la requête s'il est fourni (et valide), sinon généré. Il est transmis au service,
     renvoyé dans la réponse et écrit dans le journal de la gateway :
@@ -18,6 +20,38 @@ CORS, identifiant de corrélation, timeouts, circuit breakers et Swagger UI regr
     flux SSE et les WebSocket.
   - **Circuit breaker par route**, avec un repli au format du contrat quand un service ne répond pas.
   - **Swagger UI regroupé** et **actuator** (`/actuator/health`, `/actuator/gateway/routes`).
+
+### Sécurité : point d'application unique
+
+La gateway est le seul composant exposé : elle vérifie le jeton, applique les droits, puis relaie sur le réseau
+Docker, où les services font confiance aux en-têtes qu'elle pose (et qu'elle seule peut poser).
+
+- **Vérification locale du JWT** (`spring-boot-starter-oauth2-resource-server`, WebFlux) : signature RS256 avec les
+  clés publiques du realm, téléchargées une fois depuis `jwk-set-uri` (adresse interne `http://keycloak:8080/…/certs`)
+  puis gardées en cache ; `exp`/`nbf` ; `iss` = `http://localhost:8180/realms/sahticonnect` (adresse publique fixée
+  par `KC_HOSTNAME`) ; `aud` contient `sahticonnect-gateway`. Aucun appel à Keycloak par requête.
+- **Rôles** : `realm_access.roles` → autorités `ROLE_PATIENT`, `ROLE_MEDECIN`, `ROLE_ADMIN` (`Roles`).
+- **Matrice** (`SecuriteConfig`) :
+
+  | Chemin | Accès |
+  |---|---|
+  | `/actuator/health/**`, `/swagger-ui*`, `/v3/api-docs/**`, `/api/*/v3/api-docs*`, YAML des contrats, `/fallback/**`, `GET /api/cnam/ws/*.wsdl` | public |
+  | `/api/portail/**` | PATIENT, MEDECIN, ADMIN (le portail limite le PATIENT à ses données) |
+  | `/api/graphql` (HTTP et WebSocket) | MEDECIN, ADMIN |
+  | `POST /api/orchestrateur/workflows/declencher` | MEDECIN, ADMIN |
+  | `/api/orchestrateur/**`, `/api/cnam/ws/**`, autres `/actuator/**` | ADMIN |
+
+- **Erreurs** (`ReponsesSecurite`) : 401 `NON_AUTHENTIFIE` (jeton absent, expiré, mauvaise signature, mauvais
+  issuer ou audience) et 403 `ACCES_REFUSE` au format `Erreur` des contrats (+ `WWW-Authenticate: Bearer`) ; sur
+  `/api/cnam/ws/**`, une SOAP Fault `soap:Client` à la place, pour que le client SOAP la lise comme les autres.
+- **Propagation d'identité** (`PropagationIdentiteFilter`, filtre global) : `X-Patient-Id` et `X-Roles` envoyés par
+  le client sont **toujours supprimés** (sinon un patient pourrait se faire passer pour un autre) ; la gateway ajoute
+  `X-Roles` et, pour un utilisateur seulement PATIENT, `X-Patient-Id` = claim `patient_id` (PATIENT sans claim → 403).
+- **WebSocket GraphQL** : le navigateur ne peut pas poser d'en-tête `Authorization` sur une WebSocket. Pour le seul
+  upgrade `GET /api/graphql`, le jeton est accepté dans `?access_token=` (`JetonConverter`), retiré de l'URL avant le
+  relais et masqué (`access_token=***`) dans le journal. Partout ailleurs (y compris le SSE), seul l'en-tête compte.
+- **`sahti.securite.active`** (`SAHTI_SECURITE_ACTIVE`) : `true` en Docker ; `false` pour lancer la gateway en local
+  sans Keycloak (tout est alors ouvert, comme avant le bonus).
 
 ### Routes
 
@@ -94,6 +128,8 @@ cd api-gateway
 - **Profil par défaut** : services sur localhost (8081, 8082, 8083, 8085). Un service arrêté → 503 sur sa route
   seulement, les autres routes continuent de fonctionner.
 - **Profil `docker`** : `PORTAIL_URL`, `ORCHESTRATEUR_URL`, `DASHBOARD_URL`, `CNAM_URL` (par défaut les noms des conteneurs).
+- **Keycloak** : `KEYCLOAK_ISSUER` (issuer public, `http://localhost:8180/realms/sahticonnect`), `KEYCLOAK_JWKS`
+  (clés, adresse interne en Docker). Sans Keycloak en local : `$env:SAHTI_SECURITE_ACTIVE = "false"` avant le lancement.
 - Dans `docker-compose.yml`, la gateway attend que les 5 services soient *healthy*. **En production, seul le port 8080
   serait publié** : les ports des services ne le sont que pour le développement et les tests en accès direct.
 
@@ -104,7 +140,14 @@ docker build -t sahticonnect/api-gateway .
 ## Tester
 
 ```powershell
-# 26 tests :
+# 72 tests :
+#  - SecuriteIntegrationTest (41, jetons RS256 signés par le test, clés servies par WireMock) : matrice rôle × route,
+#    401 (absent, expiré, mauvaise signature, mauvais issuer, mauvaise audience) / 403 au format Erreur et en SOAP Fault,
+#    routes publiques, X-Patient-Id injecté pour un patient et absent pour un médecin, X-Patient-Id/X-Roles du client
+#    supprimés, jeton dans l'URL refusé hors WebSocket, préflight CORS avec Authorization ;
+#  - WebSocketSecuriteIntegrationTest (5) : upgrade sans jeton → 401, jeton patient → 403, jeton médecin dans l'URL
+#    → accepté et access_token retiré de l'URI relayée ;
+#  - les tests ci-dessous, lancés avec sahti.securite.active=false (ils testent le routage, pas la sécurité) :
 #  - RoutesIntegrationTest (WireMock joue les 4 services) : chaque route et le retrait du préfixe, en-têtes
 #    X-Forwarded-* (et ceux envoyés par le client ignorés), préflight CORS accepté / refusé, en-têtes exposés,
 #    X-Correlation-Id généré / conservé / remplacé s'il est invalide, timeout de 5 s → 503, SSE relayé sans buffering
@@ -115,7 +158,8 @@ docker build -t sahticonnect/api-gateway .
 #  - ServeursOpenApiTest : réécriture sur les vrais contrats de docs/openapi
 .\mvnw.cmd verify
 
-# Tous les scripts passent par la gateway avec -ViaGateway (stack docker compose démarrée)
+# Tous les scripts passent par la gateway avec -ViaGateway (stack docker compose démarrée) ; ils obtiennent un
+# jeton avec le client Keycloak « scripts » (réservé aux tests), compte admin par défaut (-Utilisateur pour un autre)
 ..\docs\tests\soap\tester-soap.ps1 -ViaGateway
 ..\docs\tests\rest\tester-rest.ps1 -ViaGateway
 ..\docs\tests\graphql\tester-graphql.ps1 -ViaGateway          # dont la subscription en WebSocket
