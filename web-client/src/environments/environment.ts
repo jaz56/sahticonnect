@@ -1,6 +1,7 @@
 /**
  * Toutes les requêtes du client passent par l'API Gateway, jamais directement par un service.
  * (En Docker comme en local, le navigateur joint la gateway sur le port 8080 de la machine.)
+ * Authentification : Keycloak (realm sahticonnect), client public « web-client », Authorization Code + PKCE.
  */
 const gatewayUrl = 'http://localhost:8080';
 
@@ -13,4 +14,9 @@ export const environment = {
   cnamUrl: `${gatewayUrl}/api/cnam/ws`,
   fluxWorkflowsUrl: `${gatewayUrl}/api/orchestrateur/workflows/flux`,
   santeGatewayUrl: `${gatewayUrl}/actuator/health`,
+  keycloak: {
+    /** Issuer PUBLIC du realm (le même que celui validé par la gateway). */
+    authority: 'http://localhost:8180/realms/sahticonnect',
+    clientId: 'web-client',
+  },
 };

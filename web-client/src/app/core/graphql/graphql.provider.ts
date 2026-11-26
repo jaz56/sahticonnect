@@ -7,6 +7,7 @@ import { getMainDefinition } from '@apollo/client/utilities';
 import { Kind, OperationTypeNode } from 'graphql';
 import { createClient } from 'graphql-ws';
 import { environment } from '../../../environments/environment';
+import { Authentification } from '../auth/authentification.service';
 
 /**
  * Apollo : requêtes et mutations en HTTP (via HttpClient, donc via l'intercepteur d'erreurs), subscriptions en
@@ -33,9 +34,13 @@ declare module '@apollo/client' {
 export function provideGraphQl(): Provider {
   return provideApollo(() => {
     const http = inject(HttpLink).create({ uri: environment.graphqlUrl });
+    const authentification = inject(Authentification);
     const ws = new GraphQLWsLink(
       createClient({
-        url: environment.graphqlWsUrl,
+        // le navigateur ne peut pas poser d'en-tête Authorization sur une WebSocket : le jeton voyage dans l'URL de
+        // l'upgrade (accepté par la gateway pour cette seule route, puis retiré avant le relais). Fonction : jeton
+        // frais à chaque (re)connexion.
+        url: async () => `${environment.graphqlWsUrl}?access_token=${encodeURIComponent(await authentification.jeton())}`,
         lazy: true, // la WebSocket ne s'ouvre qu'à la première subscription
         retryAttempts: Number.POSITIVE_INFINITY, // dashboard ou gateway redémarré : on se reconnecte
         shouldRetry: () => true,

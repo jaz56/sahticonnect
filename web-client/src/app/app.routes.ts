@@ -1,24 +1,31 @@
 import { Routes } from '@angular/router';
+import { roleGuard } from './core/auth/role.guard';
 
-/** Un écran = un composant standalone chargé à la demande (lazy loading). */
+/**
+ * Un écran = un composant standalone chargé à la demande (lazy loading). Chaque groupe d'écrans est gardé par les
+ * rôles du jeton (mêmes règles que la gateway : PATIENT, MEDECIN, ADMIN pour le portail ; MEDECIN, ADMIN pour
+ * GraphQL ; ADMIN pour l'orchestrateur et la CNAM).
+ */
 export const routes: Routes = [
   { path: '', title: 'Accueil — SahtiConnect', loadComponent: () => import('./pages/accueil/accueil') },
 
   // Patient (REST, portail-patient via la gateway)
-  { path: 'patient/profil', title: 'Mon profil — SahtiConnect', loadComponent: () => import('./pages/patient/profil/profil') },
-  { path: 'patient/prendre-rdv', title: 'Prendre RDV — SahtiConnect', loadComponent: () => import('./pages/patient/prise-rdv/prise-rdv') },
-  { path: 'patient/rdv', title: 'Mes RDV — SahtiConnect', loadComponent: () => import('./pages/patient/mes-rdv/mes-rdv') },
-  { path: 'patient/ordonnances', title: 'Ordonnances — SahtiConnect', loadComponent: () => import('./pages/patient/ordonnances/ordonnances') },
-  { path: 'patient/ambulance', title: 'Suivi ambulance — SahtiConnect', loadComponent: () => import('./pages/patient/ambulance/ambulance') },
+  { path: 'patient/profil', title: 'Mon profil — SahtiConnect', canActivate: [roleGuard('PATIENT', 'MEDECIN', 'ADMIN')], loadComponent: () => import('./pages/patient/profil/profil') },
+  { path: 'patient/prendre-rdv', title: 'Prendre RDV — SahtiConnect', canActivate: [roleGuard('PATIENT', 'MEDECIN', 'ADMIN')], loadComponent: () => import('./pages/patient/prise-rdv/prise-rdv') },
+  { path: 'patient/rdv', title: 'Mes RDV — SahtiConnect', canActivate: [roleGuard('PATIENT', 'MEDECIN', 'ADMIN')], loadComponent: () => import('./pages/patient/mes-rdv/mes-rdv') },
+  { path: 'patient/ordonnances', title: 'Ordonnances — SahtiConnect', canActivate: [roleGuard('PATIENT', 'MEDECIN', 'ADMIN')], loadComponent: () => import('./pages/patient/ordonnances/ordonnances') },
+  { path: 'patient/ambulance', title: 'Suivi ambulance — SahtiConnect', canActivate: [roleGuard('PATIENT', 'MEDECIN', 'ADMIN')], loadComponent: () => import('./pages/patient/ambulance/ambulance') },
 
   // Médecin (GraphQL, dashboard-medical via la gateway)
-  { path: 'medecin/tableau-de-bord', title: 'Tableau de bord — SahtiConnect', loadComponent: () => import('./pages/medecin/tableau-de-bord/tableau-de-bord') },
-  { path: 'medecin/patients/:id', title: 'Fiche patient — SahtiConnect', loadComponent: () => import('./pages/medecin/fiche-patient/fiche-patient') },
-  { path: 'medecin/alertes', title: 'Alertes en direct — SahtiConnect', loadComponent: () => import('./pages/medecin/alertes-direct/alertes-direct') },
+  { path: 'medecin/tableau-de-bord', title: 'Tableau de bord — SahtiConnect', canActivate: [roleGuard('MEDECIN', 'ADMIN')], loadComponent: () => import('./pages/medecin/tableau-de-bord/tableau-de-bord') },
+  { path: 'medecin/patients/:id', title: 'Fiche patient — SahtiConnect', canActivate: [roleGuard('MEDECIN', 'ADMIN')], loadComponent: () => import('./pages/medecin/fiche-patient/fiche-patient') },
+  { path: 'medecin/alertes', title: 'Alertes en direct — SahtiConnect', canActivate: [roleGuard('MEDECIN', 'ADMIN')], loadComponent: () => import('./pages/medecin/alertes-direct/alertes-direct') },
 
   // Admin (REST + SSE orchestrateur, SOAP CNAM)
-  { path: 'admin/workflows', title: 'Workflows — SahtiConnect', loadComponent: () => import('./pages/admin/workflows/workflows') },
-  { path: 'admin/cnam', title: 'CNAM (SOAP) — SahtiConnect', loadComponent: () => import('./pages/admin/cnam/cnam') },
+  { path: 'admin/workflows', title: 'Workflows — SahtiConnect', canActivate: [roleGuard('ADMIN')], loadComponent: () => import('./pages/admin/workflows/workflows') },
+  { path: 'admin/cnam', title: 'CNAM (SOAP) — SahtiConnect', canActivate: [roleGuard('ADMIN')], loadComponent: () => import('./pages/admin/cnam/cnam') },
+
+  { path: 'acces-refuse', title: 'Accès refusé — SahtiConnect', loadComponent: () => import('./pages/acces-refuse/acces-refuse') },
 
   { path: '**', redirectTo: '' },
 ];

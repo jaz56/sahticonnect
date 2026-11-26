@@ -18,6 +18,7 @@ import { NiveauAlerte, OrchestrateurService, Workflow } from '../../api/orchestr
 import { alerteSimulee } from '../../core/alertes-simulees';
 import { Pastille } from '../../shared/pastille';
 import { SANS_NOTIFICATION } from '../../core/erreurs';
+import { Authentification } from '../../core/auth/authentification.service';
 
 type EtatGateway = 'UP' | 'DOWN' | 'INJOIGNABLE' | 'VERIFICATION';
 
@@ -34,6 +35,7 @@ export default class Accueil {
   private readonly http = inject(HttpClient);
   private readonly orchestrateur = inject(OrchestrateurService);
   protected readonly session = inject(SessionService);
+  protected readonly auth = inject(Authentification);
 
   protected readonly patients = PATIENTS;
   protected readonly gatewayUrl = environment.gatewayUrl;

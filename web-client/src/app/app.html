@@ -8,24 +8,32 @@
   </a>
   <span class="espace"></span>
 
-  <mat-button-toggle-group class="roles" [value]="session.role()" (change)="changerRole($event.value)" aria-label="Rôle"
-                           hideSingleSelectionIndicator>
-    @for (role of roles; track role.id) {
-      <mat-button-toggle [value]="role.id" [attr.data-role]="role.id">
-        <mat-icon>{{ role.icone }}</mat-icon>
-        @if (!etroit()) { <span class="libelle-role">{{ role.libelle }}</span> }
-      </mat-button-toggle>
+  @if (auth.utilisateur(); as u) {
+    <!-- le médecin et l'admin choisissent le patient ; un patient est toujours sur son propre dossier -->
+    @if (auth.estPatient()) {
+      <span class="mon-dossier" data-testid="mon-dossier">
+        <mat-icon>folder_shared</mat-icon> {{ session.patientId() }}
+      </span>
+    } @else {
+      <mat-form-field class="choix-patient" appearance="outline" subscriptSizing="dynamic">
+        <mat-select [value]="session.patientId()" (valueChange)="session.choisirPatient($event)" aria-label="Patient"
+                    data-testid="choix-patient">
+          @for (p of patients; track p.id) {
+            <mat-option [value]="p.id">{{ p.id }} · {{ p.nom }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
     }
-  </mat-button-toggle-group>
-
-  <mat-form-field class="choix-patient" appearance="outline" subscriptSizing="dynamic">
-    <mat-select [value]="session.patientId()" (valueChange)="session.patientId.set($event)" aria-label="Patient"
-                data-testid="choix-patient">
-      @for (p of patients; track p.id) {
-        <mat-option [value]="p.id">{{ p.id }} · {{ p.nom }}</mat-option>
-      }
-    </mat-select>
-  </mat-form-field>
+    <span class="utilisateur" data-testid="utilisateur" [matTooltip]="u.login + ' · ' + u.roles.join(', ')">
+      <mat-icon>{{ auth.estPatient() ? 'person' : auth.roles().includes('ADMIN') ? 'admin_panel_settings' : 'stethoscope' }}</mat-icon>
+      @if (!etroit()) { <span>{{ u.nom }} <small>({{ u.roles.join(', ') }})</small></span> }
+    </span>
+    <button mat-stroked-button (click)="auth.deconnecter()" data-testid="deconnexion">
+      <mat-icon>logout</mat-icon> @if (!etroit()) { Déconnexion }
+    </button>
+  } @else if (auth.connecte() === false) {
+    <button mat-flat-button (click)="auth.connecter()" data-testid="connexion"><mat-icon>login</mat-icon> Se connecter</button>
+  }
 </mat-toolbar>
 
 <mat-sidenav-container class="conteneur">
@@ -36,16 +44,24 @@
         <mat-icon matListItemIcon>home</mat-icon>
         <span matListItemTitle>Accueil</span>
       </a>
-      <h3 class="titre-menu">{{ session.role() === 'patient' ? 'Espace patient' : session.role() === 'medecin' ? 'Espace médecin' : 'Administration' }}</h3>
-      @for (entree of menu(); track entree.lien) {
-        <a mat-list-item [routerLink]="entree.lien" routerLinkActive="actif" (click)="etroit() && tiroir.close()">
-          <mat-icon matListItemIcon>{{ entree.icone }}</mat-icon>
-          <span matListItemTitle>{{ entree.libelle }}</span>
-          <span matListItemLine class="protocole">{{ entree.protocole }}</span>
-        </a>
+      @for (section of sections(); track section.titre) {
+        <h3 class="titre-menu">{{ section.titre === 'Dossier patient' && auth.estPatient() ? 'Mon dossier' : section.titre }}</h3>
+        @for (entree of section.entrees; track entree.lien) {
+          <a mat-list-item [routerLink]="entree.lien" routerLinkActive="actif" (click)="etroit() && tiroir.close()">
+            <mat-icon matListItemIcon>{{ entree.icone }}</mat-icon>
+            <span matListItemTitle>{{ entree.libelle }}</span>
+            <span matListItemLine class="protocole">{{ entree.protocole }}</span>
+          </a>
+        }
       }
     </mat-nav-list>
-    <p class="pied-menu">Toutes les requêtes passent par l'API Gateway (localhost:8080).</p>
+    <p class="pied-menu">
+      @if (auth.connecte()) {
+        Toutes les requêtes passent par l'API Gateway (localhost:8080), avec le jeton OIDC de Keycloak.
+      } @else {
+        Connectez-vous (Keycloak) pour accéder aux écrans de votre rôle.
+      }
+    </p>
   </mat-sidenav>
 
   <mat-sidenav-content class="contenu">

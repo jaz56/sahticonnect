@@ -1,4 +1,4 @@
-import { Page, expect } from '@playwright/test';
+import { Browser, Page, expect } from '@playwright/test';
 
 /** Prochain jour de consultation (pas un dimanche) dans au moins `decalage` jours, au format ISO. */
 export function prochainJourOuvre(decalage: number): string {
@@ -23,9 +23,31 @@ export async function choisirOption(page: Page, testId: string, libelle: RegExp)
   await option.click();
 }
 
-/** Rôle de la barre du haut (Patient / Médecin / Admin). */
-export async function choisirRole(page: Page, role: 'patient' | 'medecin' | 'admin'): Promise<void> {
-  await page.locator(`mat-button-toggle[data-role="${role}"] button`).click();
+/** Comptes de démo du realm Keycloak sahticonnect (mot de passe « demo »). */
+export type CompteDemo = 'ahmed' | 'leila' | 'karim' | 'sonia' | 'hedi' | 'dr.chaabane' | 'dr.haddad' | 'dr.kallel' | 'admin';
+
+/**
+ * Connexion par le vrai parcours OIDC : bouton « Se connecter » → page de connexion Keycloak (localhost:8180) →
+ * retour sur le client avec le code d'autorisation, échangé contre les jetons (PKCE).
+ */
+export async function seConnecter(page: Page, compte: CompteDemo): Promise<void> {
+  await page.goto('/');
+  await page.getByTestId('connexion').first().click();
+  await page.locator('#username').fill(compte);
+  await page.locator('#password').fill('demo');
+  await page.locator('#kc-login').click();
+  await expect(page.getByTestId('utilisateur')).toBeVisible({ timeout: 20_000 });
+}
+
+/**
+ * Nouvel onglet dans un contexte de navigateur séparé (cookies et stockage propres), connecté avec ce compte :
+ * deux utilisateurs différents en même temps (sinon la session SSO de Keycloak serait partagée).
+ */
+export async function ouvrirSession(browser: Browser, compte: CompteDemo): Promise<Page> {
+  const contexte = await browser.newContext();
+  const page = await contexte.newPage();
+  await seConnecter(page, compte);
+  return page;
 }
 
 /** Simule une alerte depuis l'accueil ; renvoie l'identifiant du workflow et de l'alerte créés. */

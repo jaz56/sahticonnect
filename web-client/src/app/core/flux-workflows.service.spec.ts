@@ -1,125 +1,132 @@
+import { EventSourceMessage, FetchEventSourceInit } from '@microsoft/fetch-event-source';
 import { fluxSse } from './flux-workflows.service';
 
-/** Faux EventSource : les tests déclenchent eux-mêmes l'ouverture, les événements et les erreurs. */
-class FauxEventSource {
-  static instances: FauxEventSource[] = [];
-  readyState = 0; // CONNECTING
-  onopen: (() => void) | null = null;
-  onerror: (() => void) | null = null;
-  ferme = false;
-  private ecouteurs = new Map<string, ((e: MessageEvent) => void)[]>();
-
-  constructor(readonly url: string) {
-    FauxEventSource.instances.push(this);
-  }
-
-  addEventListener(nom: string, ecouteur: (e: MessageEvent) => void): void {
-    this.ecouteurs.set(nom, [...(this.ecouteurs.get(nom) ?? []), ecouteur]);
-  }
-
-  close(): void {
-    this.ferme = true;
-    this.readyState = 2;
-  }
-
-  // ----- pilotage par le test -----
-  ouvrir(): void {
-    this.readyState = 1;
-    this.onopen?.();
-  }
-
-  emettre(nom: string, donnees: string): void {
-    (this.ecouteurs.get(nom) ?? []).forEach((e) => e(new MessageEvent(nom, { data: donnees })));
-  }
-
-  echouer(readyState: number): void {
-    this.readyState = readyState;
-    this.onerror?.();
-  }
+/** Fausse connexion fetch-event-source : le test déclenche l'ouverture, les messages, les erreurs et la fin. */
+interface FausseConnexion {
+  url: string;
+  init: FetchEventSourceInit;
+  ouvrir(statut?: number): Promise<void>;
+  emettre(event: string, data: string): void;
+  echouer(): void;
+  terminer(): void;
 }
 
-describe('fluxSse (EventSource → Observable)', () => {
-  const fabrique = (url: string) => new FauxEventSource(url) as unknown as EventSource;
+describe('fluxSse (fetch-event-source → Observable)', () => {
+  let connexions: FausseConnexion[];
+  let numero = 0;
+
+  /** Reproduit fetchEventSource : une erreur relancée par onerror rejette la promesse ; abort la résout. */
+  const ouvreur = (url: string, init: FetchEventSourceInit) =>
+    new Promise<void>((resolve, reject) => {
+      const signalerErreur = (erreur: unknown) => {
+        try {
+          init.onerror!(erreur);
+        } catch (relance) {
+          reject(relance);
+        }
+      };
+      connexions.push({
+        url,
+        init,
+        ouvrir: async (statut = 200) => {
+          try {
+            await init.onopen!(new Response(null, { status: statut, headers: { 'Content-Type': 'text/event-stream' } }));
+          } catch (e) {
+            signalerErreur(e);
+          }
+        },
+        emettre: (event, data) => init.onmessage!({ id: '', event, data } as EventSourceMessage),
+        echouer: () => signalerErreur(new Error('réseau')),
+        terminer: () => resolve(),
+      });
+      init.signal?.addEventListener('abort', () => resolve());
+    });
+  const jeton = async () => `jeton-${++numero}`;
   const options = { evenement: 'workflow', delaiInitial: 1000, delaiMax: 4000 };
+  /** Laisse passer les promesses en attente (jeton, rejet de la connexion). */
+  const attendre = () => vi.advanceTimersByTimeAsync(0);
 
   beforeEach(() => {
-    FauxEventSource.instances = [];
+    connexions = [];
+    numero = 0;
     vi.useFakeTimers();
-    // l'EventSource du navigateur n'existe pas sous jsdom : seules ses constantes servent
-    (globalThis as any).EventSource ??= { CONNECTING: 0, OPEN: 1, CLOSED: 2 };
   });
 
   afterEach(() => vi.useRealTimers());
 
-  it('émet chaque événement nommé, désérialisé ; ignore les autres et les données illisibles', () => {
+  it("envoie le jeton dans l'en-tête Authorization, jamais dans l'URL", async () => {
+    fluxSse('http://gw/flux', ouvreur, jeton, options).subscribe();
+    await attendre();
+
+    expect(connexions[0].url).toBe('http://gw/flux');
+    expect(connexions[0].init.headers).toEqual({ Accept: 'text/event-stream', Authorization: 'Bearer jeton-1' });
+  });
+
+  it('émet chaque événement nommé, désérialisé ; ignore les autres et les données illisibles', async () => {
     const recus: unknown[] = [];
     const etats: boolean[] = [];
-    fluxSse<{ id: string }>('http://gw/flux', fabrique, options, (c) => etats.push(c)).subscribe((w) => recus.push(w));
-    const source = FauxEventSource.instances[0];
+    fluxSse<{ id: string }>('http://gw/flux', ouvreur, jeton, options, (c) => etats.push(c)).subscribe((w) => recus.push(w));
+    await attendre();
+    const connexion = connexions[0];
 
-    source.ouvrir();
-    source.emettre('workflow', '{"id":"WF-2026-000001","etat":"FACTUREE"}');
-    source.emettre('autre', '{"id":"X"}');
-    source.emettre('workflow', 'pas du json');
+    await connexion.ouvrir();
+    connexion.emettre('workflow', '{"id":"WF-2026-000001","etat":"FACTUREE"}');
+    connexion.emettre('autre', '{"id":"X"}');
+    connexion.emettre('workflow', 'pas du json');
 
-    expect(source.url).toBe('http://gw/flux');
     expect(recus).toEqual([{ id: 'WF-2026-000001', etat: 'FACTUREE' }]);
     expect(etats).toEqual([true]);
   });
 
-  it('coupure réseau (CONNECTING) : on laisse l\'EventSource se reconnecter seul', () => {
-    fluxSse('http://gw/flux', fabrique, options).subscribe();
-    FauxEventSource.instances[0].echouer(0);
-
-    vi.advanceTimersByTime(10000);
-    expect(FauxEventSource.instances).toHaveLength(1);
-  });
-
-  it('flux fermé (ex. 503 de la gateway) : reconnexion manuelle avec délai croissant plafonné', () => {
+  it('réponse refusée (503, 401) ou réseau : reconnexion avec délai croissant plafonné et jeton frais', async () => {
     const etats: boolean[] = [];
-    fluxSse('http://gw/flux', fabrique, options, (c) => etats.push(c)).subscribe();
+    fluxSse('http://gw/flux', ouvreur, jeton, options, (c) => etats.push(c)).subscribe();
+    await attendre();
 
-    FauxEventSource.instances[0].echouer(2);
-    expect(FauxEventSource.instances[0].ferme).toBe(true);
-    vi.advanceTimersByTime(999);
-    expect(FauxEventSource.instances).toHaveLength(1);
-    vi.advanceTimersByTime(1);
-    expect(FauxEventSource.instances).toHaveLength(2); // après 1 s
+    await connexions[0].ouvrir(503);
+    await attendre();
+    await vi.advanceTimersByTimeAsync(999);
+    expect(connexions).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(connexions).toHaveLength(2); // après 1 s
+    expect(connexions[1].init.headers).toMatchObject({ Authorization: 'Bearer jeton-2' });
 
-    FauxEventSource.instances[1].echouer(2);
-    vi.advanceTimersByTime(2000);
-    expect(FauxEventSource.instances).toHaveLength(3); // après 2 s
+    await connexions[1].ouvrir(401);
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(connexions).toHaveLength(3); // après 2 s
 
-    FauxEventSource.instances[2].echouer(2);
-    vi.advanceTimersByTime(4000);
-    FauxEventSource.instances[3].echouer(2);
-    vi.advanceTimersByTime(3999);
-    expect(FauxEventSource.instances).toHaveLength(4); // plafond 4 s : pas encore
-    vi.advanceTimersByTime(1);
-    expect(FauxEventSource.instances).toHaveLength(5);
+    connexions[2].echouer();
+    await vi.advanceTimersByTimeAsync(4000);
+    connexions[3].echouer();
+    await vi.advanceTimersByTimeAsync(3999);
+    expect(connexions).toHaveLength(4); // plafond 4 s : pas encore
+    await vi.advanceTimersByTimeAsync(1);
+    expect(connexions).toHaveLength(5);
     expect(etats.every((e) => e === false)).toBe(true);
   });
 
-  it('une connexion réussie remet le délai au minimum', () => {
-    fluxSse('http://gw/flux', fabrique, options).subscribe();
-    FauxEventSource.instances[0].echouer(2);
-    vi.advanceTimersByTime(1000);
-    FauxEventSource.instances[1].echouer(2);
-    vi.advanceTimersByTime(2000);
-    FauxEventSource.instances[2].ouvrir();
-    FauxEventSource.instances[2].echouer(2);
+  it('une connexion réussie remet le délai au minimum ; fin du flux côté serveur : reconnexion', async () => {
+    fluxSse('http://gw/flux', ouvreur, jeton, options).subscribe();
+    await attendre();
+    connexions[0].echouer();
+    await vi.advanceTimersByTimeAsync(1000);
+    connexions[1].echouer();
+    await vi.advanceTimersByTimeAsync(2000);
+    await connexions[2].ouvrir();
+    connexions[2].terminer();
 
-    vi.advanceTimersByTime(1000);
-    expect(FauxEventSource.instances).toHaveLength(4);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(connexions).toHaveLength(4);
   });
 
-  it('désabonnement : EventSource fermé, plus de reconnexion', () => {
-    const abonnement = fluxSse('http://gw/flux', fabrique, options).subscribe();
-    FauxEventSource.instances[0].echouer(2);
+  it('désabonnement : requête annulée, plus de reconnexion', async () => {
+    const abonnement = fluxSse('http://gw/flux', ouvreur, jeton, options).subscribe();
+    await attendre();
+    const signal = connexions[0].init.signal!;
     abonnement.unsubscribe();
 
-    vi.advanceTimersByTime(60000);
-    expect(FauxEventSource.instances).toHaveLength(1);
-    expect(FauxEventSource.instances[0].ferme).toBe(true);
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(signal.aborted).toBe(true);
+    expect(connexions).toHaveLength(1);
   });
 });

@@ -26,8 +26,22 @@
   flex: 1;
 }
 
-.roles .libelle-role {
-  margin-left: 6px;
+.utilisateur,
+.mon-dossier {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: var(--mat-sys-label-large);
+
+  small {
+    color: var(--mat-sys-on-surface-variant);
+  }
+}
+
+.mon-dossier {
+  padding: 4px 12px;
+  border-radius: 16px;
+  background: var(--mat-sys-secondary-container);
 }
 
 .choix-patient {

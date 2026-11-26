@@ -8,6 +8,8 @@ import { MAT_ICON_DEFAULT_OPTIONS } from '@angular/material/icon';
 import { routes } from './app.routes';
 import { environment } from '../environments/environment';
 import { erreurInterceptor } from './core/erreur.interceptor';
+import { jetonInterceptor } from './core/auth/jeton.interceptor';
+import { provideAuthentification } from './core/auth/auth.config';
 import { provideGraphQl } from './core/graphql/graphql.provider';
 import { provideApi as provideApiPortail } from './api/portail';
 import { provideApi as provideApiOrchestrateur } from './api/orchestrateur';
@@ -18,7 +20,9 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes, withComponentInputBinding()),
-    provideHttpClient(withInterceptors([erreurInterceptor])),
+    // OIDC Keycloak (Authorization Code + PKCE) ; le jeton est ajouté avant l'intercepteur d'erreurs
+    provideAuthentification(),
+    provideHttpClient(withInterceptors([jetonInterceptor, erreurInterceptor])),
     // clients REST générés depuis les contrats OpenAPI, branchés sur la gateway
     provideApiPortail(environment.portailUrl),
     provideApiOrchestrateur(environment.orchestrateurUrl),

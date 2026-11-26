@@ -1,6 +1,5 @@
-import { Injectable, computed, effect, signal } from '@angular/core';
-
-export type Role = 'patient' | 'medecin' | 'admin';
+import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { Authentification } from './auth/authentification.service';
 
 export interface PatientDeTest {
   id: string;
@@ -19,25 +18,33 @@ export const PATIENTS: readonly PatientDeTest[] = [
   { id: 'PAT-0005', nom: 'Hedi Gharbi', pathologie: 'Personne âgée (chutes)', couverture: 'Filière publique 80 %', vignette: 'VG-2026-000005' },
 ];
 
-export const ROLES: readonly { id: Role; libelle: string; icone: string }[] = [
-  { id: 'patient', libelle: 'Patient', icone: 'person' },
-  { id: 'medecin', libelle: 'Médecin', icone: 'stethoscope' },
-  { id: 'admin', libelle: 'Admin', icone: 'admin_panel_settings' },
-];
-
-const CLE_ROLE = 'sahti.role';
 const CLE_PATIENT = 'sahti.patient';
 
-/** Rôle et patient courants (barre du haut), mémorisés dans le localStorage. */
+/**
+ * Patient courant des écrans. Un utilisateur PATIENT est TOUJOURS sur son propre dossier (claim patient_id du
+ * jeton) ; le médecin et l'admin choisissent le patient dans la barre du haut (mémorisé dans le localStorage).
+ */
 @Injectable({ providedIn: 'root' })
 export class SessionService {
-  readonly role = signal<Role>(lire(CLE_ROLE, ['patient', 'medecin', 'admin'], 'patient') as Role);
-  readonly patientId = signal<string>(lire(CLE_PATIENT, PATIENTS.map((p) => p.id), 'PAT-0001'));
+  private readonly authentification = inject(Authentification);
+  private readonly patientChoisi = signal<string>(lire(CLE_PATIENT, PATIENTS.map((p) => p.id), 'PAT-0001'));
+
+  readonly patientId = computed(() =>
+    this.authentification.estPatient()
+      ? (this.authentification.utilisateur()?.patientId ?? this.patientChoisi())
+      : this.patientChoisi(),
+  );
   readonly patient = computed(() => PATIENTS.find((p) => p.id === this.patientId()) ?? PATIENTS[0]);
 
   constructor() {
-    effect(() => ecrire(CLE_ROLE, this.role()));
-    effect(() => ecrire(CLE_PATIENT, this.patientId()));
+    effect(() => ecrire(CLE_PATIENT, this.patientChoisi()));
+  }
+
+  /** Sélecteur de patient (médecin, admin) ; sans effet pour un patient, limité à son dossier. */
+  choisirPatient(id: string): void {
+    if (!this.authentification.estPatient()) {
+      this.patientChoisi.set(id);
+    }
   }
 }
 

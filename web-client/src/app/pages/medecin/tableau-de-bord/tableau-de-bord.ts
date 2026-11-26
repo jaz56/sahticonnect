@@ -59,7 +59,7 @@ export default class TableauDeBord {
   }
 
   protected ouvrir(id: string): void {
-    this.session.patientId.set(id);
+    this.session.choisirPatient(id);
     this.router.navigate(['/medecin/patients', id]);
   }
 }

@@ -1,57 +1,40 @@
 import { Component, computed, inject } from '@angular/core';
 import { BreakpointObserver } from '@angular/cdk/layout';
-import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
-import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatListModule } from '@angular/material/list';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
-import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatSelectModule } from '@angular/material/select';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { filter, map } from 'rxjs';
-import { PATIENTS, ROLES, Role, SessionService } from './core/session.service';
-import { MENUS } from './core/navigation';
+import { map } from 'rxjs';
+import { PATIENTS, SessionService } from './core/session.service';
+import { sectionsPour } from './core/navigation';
+import { Authentification } from './core/auth/authentification.service';
 
 @Component({
   selector: 'app-root',
   imports: [
     RouterOutlet, RouterLink, RouterLinkActive,
     MatToolbarModule, MatSidenavModule, MatListModule, MatIconModule, MatButtonModule,
-    MatButtonToggleModule, MatSelectModule, MatFormFieldModule, MatTooltipModule,
+    MatSelectModule, MatFormFieldModule, MatTooltipModule,
   ],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })
 export class App {
   protected readonly session = inject(SessionService);
-  private readonly router = inject(Router);
+  protected readonly auth = inject(Authentification);
 
-  protected readonly roles = ROLES;
   protected readonly patients = PATIENTS;
-  protected readonly menu = computed(() => MENUS[this.session.role()]);
+  /** Le menu découle des rôles du jeton (plus de sélecteur de rôle). */
+  protected readonly sections = computed(() => sectionsPour(this.auth.roles()));
   /** Écran étroit (téléphone, tablette en portrait) : menu en tiroir. */
   protected readonly etroit = toSignal(
     inject(BreakpointObserver).observe('(max-width: 900px)').pipe(map((r) => r.matches)),
     { initialValue: false },
   );
-
-  constructor() {
-    // un lien direct (/medecin/…, /admin/…) affiche le menu du rôle correspondant
-    this.router.events
-      .pipe(filter((e): e is NavigationEnd => e instanceof NavigationEnd), takeUntilDestroyed())
-      .subscribe((e) => {
-        const role = /^\/(patient|medecin|admin)\//.exec(e.urlAfterRedirects)?.[1] as Role | undefined;
-        if (role && role !== this.session.role()) {
-          this.session.role.set(role);
-        }
-      });
-  }
-
-  protected changerRole(role: Role): void {
-    this.session.role.set(role);
-    this.router.navigateByUrl(MENUS[role][0].lien);
-  }
 }
