@@ -2,6 +2,62 @@
 
 Projet individuel de *Service Oriented Computing* (3ING GINF, ENICarthage).
 
+## Démarrage rapide
+
+Prérequis : **Docker Desktop** (Compose v2) et PowerShell. Rien d'autre à installer : Java, Node et Python tournent
+dans les conteneurs.
+
+```powershell
+git clone https://github.com/jaz56/sahticonnect.git; cd sahticonnect
+Copy-Item .env.example .env                       # mots de passe de démo (fichier ignoré par git)
+docker compose up --build -d --wait               # 1er build : 5 à 10 min ; rend la main quand les 9 conteneurs sont healthy
+powershell -ExecutionPolicy Bypass -File .\docs\tests\e2e\demo.ps1 -Docker -ViaGateway   # démo de bout en bout
+```
+
+Ensuite : **http://localhost:4200**, mot de passe `demo` pour tous les comptes. Trois comptes suffisent pour voir les
+trois rôles : `ahmed` (patient), `dr.chaabane` (médecin), `admin` (tout, dont les workflows et la CNAM).
+Le détail des comptes est dans [Utilisateurs de démo](#sécurité-bonus--keycloak-oidc-et-jwt).
+
+## Fonctionnalités
+
+| | Fonctionnalité | Où |
+|---|---|---|
+| **Énoncé** | Service SOAP contract-first : droits CNAM, feuilles de soins, historique, comparaison de garanties, SOAP Faults | [dossier-cnam-service](dossier-cnam-service/README.md) |
+| | Service REST : profil, créneaux, CRUD des RDV, ordonnances, ambulances (OpenAPI, Swagger UI) | [portail-patient-service](portail-patient-service/README.md) |
+| | Service GraphQL schema-first : vue consolidée du médecin, filtres, interventions, subscriptions WebSocket, DataLoaders | [dashboard-medical-service](dashboard-medical-service/README.md) |
+| | Service gRPC : streaming bidirectionnel des mesures, détection des seuils, anti-rebond, flux d'alertes | [telemetrie-service](telemetrie-service/README.md) |
+| | Capteur IoT simulé (Python grpcio, 5 scénarios : normal, tachycardie, désaturation, hypertension, chute) | [capteur-simulator](capteur-simulator/README.md) |
+| | Orchestrateur : workflow d'alerte sur les 4 protocoles, une file par patient, idempotence, relance, Resilience4j | [orchestrateur-service](orchestrateur-service/README.md) |
+| | API Gateway : point d'entrée unique, CORS, timeouts, circuit breakers, fallbacks au format du contrat | [api-gateway](api-gateway/README.md) |
+| | Client web Angular : un écran par rôle, clients générés depuis les contrats, alertes en direct, SSE | [web-client](web-client/README.md) |
+| | Database-per-service (PostgreSQL), Docker Compose, healthchecks, ordre de démarrage | [Lancer avec Docker](#lancer-avec-docker) |
+| **Bonus 1** | Saga d'escalade avec compensation (ÉLEVÉE puis CRITIQUE → RDV annulé, feuille annulée, fiche compensée) | [orchestrateur-service](orchestrateur-service/README.md) |
+| **Bonus 2** | Sécurité Keycloak : OIDC Authorization Code + PKCE, JWT vérifié par la gateway, rôles, contrôle d'appartenance | [Sécurité](#sécurité-bonus--keycloak-oidc-et-jwt) |
+| **Bonus 3** | Identifiant de corrélation dans tous les services (HTTP et gRPC), propagé sur chaque appel, même format de journal | [Suivre une requête](#suivre-une-requête-dans-tous-les-services-bonus) |
+| **Tests** | `mvnw verify` par service, Vitest, Playwright (12 tests contre la stack), scripts PowerShell par protocole | [Tester](#tester) |
+
+## Contrats et captures
+
+Les contrats de [`docs/`](docs/) sont la **source de vérité** : le code de chaque service et du client web en est généré.
+
+| Protocole | Contrat |
+|---|---|
+| SOAP | [`docs/wsdl/dossier-cnam.xsd`](docs/wsdl/dossier-cnam.xsd) (contrat), [`docs/wsdl/dossier-cnam.wsdl`](docs/wsdl/dossier-cnam.wsdl) (exporté) |
+| REST | [`docs/openapi/portail-patient.yaml`](docs/openapi/portail-patient.yaml), [`docs/openapi/orchestrateur.yaml`](docs/openapi/orchestrateur.yaml) |
+| GraphQL | [`docs/graphql/dashboard-medical.graphqls`](docs/graphql/dashboard-medical.graphqls) |
+| gRPC | [`docs/proto/telemetrie.proto`](docs/proto/telemetrie.proto) |
+
+Captures du client web (régénérées par Playwright : `cd web-client; npx playwright test captures`) :
+
+| | | |
+|---|---|---|
+| [Accueil](docs/captures/01-accueil.png) | [Prise de RDV](docs/captures/02-prise-rdv.png) | [Tableau de bord](docs/captures/03-tableau-de-bord.png) |
+| [Fiche patient](docs/captures/04-fiche-patient.png) | [Alertes en direct](docs/captures/05-alertes-direct.png) | [Workflows](docs/captures/06-workflows.png) |
+| [CNAM (SOAP)](docs/captures/07-cnam-soap.png) | [SOAP Fault (XML)](docs/captures/08-cnam-fault-xml.png) | [Réponse partielle](docs/captures/09-reponse-partielle.png) |
+| [Saga : compensation](docs/captures/10-saga-compensation.png) | [Connexion Keycloak](docs/captures/11-connexion-keycloak.png) | [Accès refusé](docs/captures/12-acces-refuse.png) |
+
+## Présentation
+
 SahtiConnect suit à distance des patients chroniques. Des capteurs envoient leurs constantes en continu.
 Au franchissement d'un seuil, une alerte déclenche une intervention : ambulance pour une alerte CRITIQUE,
 rendez-vous d'urgence dans les 2 h pour une alerte ÉLEVÉE. Les droits CNAM du patient sont vérifiés et la
@@ -151,8 +207,9 @@ Le dashboard démarre aussi sans les autres services. Les champs distants valent
 
 ## Lancer avec Docker
 
-[`docker-compose.yml`](docker-compose.yml) démarre le client web, l'API Gateway, les 5 services et PostgreSQL avec
-**une seule commande**, sur les mêmes ports qu'en local. **En production, seul le port 8080 (gateway) serait publié** : les ports
+[`docker-compose.yml`](docker-compose.yml) démarre **9 conteneurs** avec **une seule commande** : le client web,
+l'API Gateway, Keycloak, les 5 services et PostgreSQL, sur les mêmes ports qu'en local (le capteur est un 10e
+conteneur, éphémère, lancé à la demande). **En production, seul le port 8080 (gateway) serait publié** : les ports
 des services ne le sont ici que pour le développement et les tests en accès direct.
 
 | Conteneur | Image | Port | Healthcheck |
@@ -175,7 +232,8 @@ des services ne le sont ici que pour le développement et les tests en accès di
   d'actuator incluent `readinessState`. `telemetrie` est un service gRPC pur, sans serveur HTTP : plutôt que
   d'ajouter Tomcat et actuator juste pour la santé, l'image embarque `grpc_health_probe`, qui interroge le service
   standard `grpc.health.v1.Health` sur le port 9090, celui qu'utilisent vraiment les clients.
-- **Mémoire** : `mem_limit: 512m` par service Java, et `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75` (tas max 384 Mo).
+- **Mémoire** : `mem_limit: 512m` par service Java (768m pour l'orchestrateur, voir les mesures plus bas), 1g pour
+  Keycloak, et `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=75` (tas max = 75 % de la limite).
 - **Données** : volume nommé `postgres-data`. Les données de test ne sont chargées que si la base est vide, et
   `schema.sql` est idempotent (`CREATE SEQUENCE IF NOT EXISTS`). Un redémarrage conserve donc tout, sans doublon.
 
@@ -184,9 +242,8 @@ des services ne le sont ici que pour le développement et les tests en accès di
 Copy-Item .env.example .env        # puis remplacer les "changer-moi"
 
 # Construire et démarrer (premier build : quelques minutes, Maven télécharge les dépendances)
-docker compose up --build -d
-docker compose ps                  # STATUS doit passer à "healthy" pour les 8 conteneurs (1 à 2 min)
-                                   # puis http://localhost:4200
+docker compose up --build -d --wait   # --wait : rend la main quand les 9 conteneurs sont "healthy"
+docker compose ps                     # état et healthchecks ; puis http://localhost:4200
 
 # Logs
 docker compose logs -f orchestrateur
@@ -217,19 +274,24 @@ docker compose exec postgres psql -U postgres -d orchestrateur
   [Console]::OutputEncoding = [Text.Encoding]::UTF8
   ```
 
-**Mesuré** (`docker stats`, stack au repos, après tous les scripts de test et la démo via la gateway) :
+**Mesuré** (`docker stats` toutes les 2 s **pendant** `demo.ps1 -Docker -ViaGateway` : pic de chaque conteneur) :
 
-| Conteneur | Mémoire / limite |
+| Conteneur | Pic / limite |
 |---|---|
-| dossier-cnam | 265 Mo / 512 Mo |
-| portail-patient | 276 Mo / 512 Mo |
-| telemetrie | 288 Mo / 512 Mo |
-| dashboard-medical | 388 Mo / 512 Mo |
-| orchestrateur | 407 Mo / 512 Mo |
-| api-gateway | 308 Mo / 512 Mo |
-| web-client (nginx) | 13 Mo / 64 Mo |
+| dossier-cnam | 296 Mo / 512 Mo (58 %) |
+| portail-patient | 296 Mo / 512 Mo (58 %) |
+| telemetrie | 248 Mo / 512 Mo (48 %) |
+| dashboard-medical | 342 Mo / 512 Mo (67 %) |
+| orchestrateur | 406 Mo / 768 Mo (53 %) |
+| api-gateway | 295 Mo / 512 Mo (58 %) |
+| keycloak | 665 Mo / 1 Go (65 %) |
+| web-client (nginx) | 14 Mo / 64 Mo |
 | postgres (5 bases) | 132 Mo |
-| **Total** | **≈ 2,1 Go** |
+| capteur (éphémère) | 24 Mo / 128 Mo |
+| **Total** | **≈ 2,7 Go** |
+
+L'orchestrateur est passé de 512m à 768m : il atteignait 85 % de 512m (437 Mo) après une série de workflows. C'est
+le service qui porte le plus de clients (SOAP, REST, GraphQL, gRPC, Resilience4j) et un thread virtuel par workflow.
 
 Démarrage complet à froid (images déjà construites) : environ 75 s. Redémarrage avec des données existantes : environ 45 s.
 
@@ -305,6 +367,65 @@ pour le confort seulement) :
 - Keycloak tourne en mode `start-dev` (HTTP, base H2 intégrée) : en production, HTTPS, base PostgreSQL et
   `start --optimized`.
 
+## Suivre une requête dans tous les services (bonus)
+
+Chaque demande porte un **identifiant de corrélation**, transmis d'un service à l'autre et écrit **en tête de chaque
+ligne de journal**, dans le même format partout : `[identifiant] date niveau [thread] logger : message`.
+
+| Où | Comment |
+|---|---|
+| api-gateway | reprend `X-Correlation-Id` du client (s'il est valide) ou en génère un (UUID), le relaie et le renvoie |
+| portail, dashboard, CNAM, orchestrateur | filtre servlet `FiltreCorrelation` : en-tête lu (ou généré), mis dans le MDC, renvoyé ; une ligne par requête (méthode, chemin, statut, durée) |
+| telemetrie | `IntercepteurCorrelationServeur` (gRPC) : métadonnée `x-correlation-id`, MDC posé à chaque étape de l'appel |
+| Appels sortants (orchestrateur, dashboard) | REST et GraphQL : intercepteur `RestClient` ; SOAP : intercepteur Spring WS (en-tête HTTP, le WSDL ne change pas) ; gRPC : intercepteur client global |
+| Changements de thread | file par patient (orchestrateur) et exécuteur des appels distants (dashboard) : le MDC est recopié sur le thread de la tâche |
+| Workflow déclenché par une **alerte gRPC** (pas de requête HTTP) | l'identifiant est **celui du workflow** (`WF-…`) ; déclenché par `POST /workflows/declencher`, il garde celui de la requête |
+| Capteur, abonnement de l'orchestrateur | `CAP-0001-20261126T120550` (un par flux), `orchestrateur-abonnement-1` |
+
+`demo.ps1` affiche à la fin la commande pour le dernier workflow. Exemple réel : alerte CRITIQUE de la tachycardie,
+qui compense d'abord le workflow ÉLEVÉE (saga) puis envoie l'ambulance. Les 5 conteneurs concernés, triés par heure
+(extrait) :
+
+```powershell
+docker compose logs | Select-String "WF-2026-000053"
+```
+
+```
+orchestrateur-1     | [WF-2026-000053] 12:06:06.076  INFO  OrchestrateurAlertes  : Alerte CRITIQUE ALR-2026-000020 pour PAT-0001 → workflow WF-2026-000053
+dashboard-medical-1 | [WF-2026-000053] 12:06:06.150  INFO  FiltreCorrelation     : POST /graphql → 200 (52 ms)
+orchestrateur-1     | [WF-2026-000053] 12:06:06.152  INFO  WorkflowAlerteService : Étape ALERTE_RECUE : OK (60 ms) – Alerte ALR-2026-000020 enregistrée sur le dashboard
+dossier-cnam-1      | [WF-2026-000053] 12:06:06.205  INFO  FiltreCorrelation     : POST /ws → 200 (38 ms)
+dossier-cnam-1      | [WF-2026-000053] 12:06:06.232  INFO  FiltreCorrelation     : POST /ws → 200 (11 ms)
+orchestrateur-1     | [WF-2026-000053] 12:06:06.236  INFO  WorkflowAlerteService : Étape DROITS_VERIFIES : OK (74 ms) – Couvert : APCI 100 % (acte V 1)
+portail-patient-1   | [WF-2026-000053] 12:06:06.304  INFO  FiltreCorrelation     : GET /rendez-vous/RDV-2026-000051 → 200 (27 ms)
+orchestrateur-1     | [WF-2026-000053] 12:06:06.306  INFO  SagaEscalade          : Escalade : alerte CRITIQUE ALR-2026-000020 → compensation du workflow ELEVEE WF-2026-000052 (RDV RDV-2026-000051)
+dossier-cnam-1      | [WF-2026-000053] 12:06:06.373  INFO  FiltreCorrelation     : POST /ws → 200 (52 ms)
+orchestrateur-1     | [WF-2026-000053] 12:06:06.378  INFO  SagaEscalade          : Compensation FACTUREE de WF-2026-000052 : OK (61 ms) – Feuille FS-2026-000056 ANNULEE
+portail-patient-1   | [WF-2026-000053] 12:06:06.490  INFO  FiltreCorrelation     : DELETE /rendez-vous/RDV-2026-000051 → 204 (22 ms)
+orchestrateur-1     | [WF-2026-000053] 12:06:06.516  INFO  WorkflowAlerteService : Étape ESCALADE : OK (210 ms) – WF-2026-000052 compensé : l'ambulance prend le relais
+portail-patient-1   | [WF-2026-000053] 12:06:06.586  INFO  FiltreCorrelation     : POST /urgences/ambulances → 201 (51 ms)
+orchestrateur-1     | [WF-2026-000053] 12:06:06.595  INFO  WorkflowAlerteService : Étape INTERVENTION_DECLENCHEE : OK (68 ms) – Ambulance AMB-2026-000017 dépêchée
+orchestrateur-1     | [WF-2026-000053] 12:06:06.644  INFO  WorkflowAlerteService : Étape FICHE_PUBLIEE : OK (35 ms) – Intervention INT-2026-000059 publiée
+dossier-cnam-1      | [WF-2026-000053] 12:06:06.715  INFO  FiltreCorrelation     : POST /ws → 200 (26 ms)
+orchestrateur-1     | [WF-2026-000053] 12:06:06.750  INFO  WorkflowAlerteService : Étape FACTUREE : OK (65 ms) – Feuille FS-2026-000057 CERTIFIEE : 145,000 DT
+orchestrateur-1     | [WF-2026-000053] 12:06:06.779  INFO  WorkflowAlerteService : Workflow WF-2026-000053 terminé : FACTUREE
+```
+
+Une requête du navigateur garde l'UUID donné par la gateway jusqu'au bout. Par exemple, la fiche GraphQL de la démo
+(constantes et couverture) :
+
+```
+dossier-cnam-1      | [1e4d73e8-816d-4302-b17a-514055d0b11f] 12:06:24.114  INFO  FiltreCorrelation        : POST /ws → 200 (41 ms)
+telemetrie-1        | [1e4d73e8-816d-4302-b17a-514055d0b11f] 12:06:24.128  INFO  IntercepteurCorrelationServeur : gRPC sahticonnect.telemetrie.Telemetrie/DernieresMesures → OK (8 ms)
+dossier-cnam-1      | [1e4d73e8-816d-4302-b17a-514055d0b11f] 12:06:24.227  INFO  FiltreCorrelation        : POST /ws → 200 (26 ms)
+dashboard-medical-1 | [1e4d73e8-816d-4302-b17a-514055d0b11f] 12:06:24.249  INFO  FiltreCorrelation        : POST /graphql → 200 (630 ms)
+api-gateway-1       | [1e4d73e8-816d-4302-b17a-514055d0b11f] 12:06:24.253  INFO  CorrelationIdFilter      : POST /api/graphql → dashboard-medical 200 OK (679 ms)
+```
+
+Pour imposer son propre identifiant : `curl.exe -H "X-Correlation-Id: test-oral-1" ...`, puis
+`docker compose logs | Select-String "test-oral-1"`. Les lignes ci-dessus sont raccourcies (date, thread et nom du
+logger abrégés) ; le format complet est `logging.pattern.console` dans chaque `application.yml`.
+
 ## Scénario de démo : capteur → alerte → workflow → dashboard
 
 **Avec le client web** (http://localhost:4200, stack Docker démarrée ; connexion Keycloak, mot de passe `demo`) :
@@ -374,6 +495,7 @@ jeton Keycloak avec le client `scripts` ([`docs/tests/jeton-keycloak.ps1`](docs/
 | Client web | `cd web-client; npm test` | 36 tests unitaires (Vitest) : SOAP, intercepteurs (erreurs, jeton), gardes de rôle, SSE, pipe DT, fiche partielle, frise |
 | Client web | `cd web-client; npm run e2e` | Playwright contre la stack Docker, avec connexion Keycloak : ahmed prend un RDV ; ahmed bloqué sur l'écran médecin et sur le dossier d'un autre (403) ; alerte en direct chez dr.chaabane → FACTUREE chez admin ; saga chez admin |
 | Sécurité | `cd api-gateway; .\mvnw.cmd verify` | Matrice rôle × route, 401/403 (JSON et SOAP Fault), X-Patient-Id injecté et usurpation supprimée, jeton WebSocket, routes publiques |
+| Corrélation | `.\mvnw.cmd verify` (chaque service) | Filtre (en-tête repris, généré, refusé s'il est invalide ; MDC sur un autre thread), intercepteurs gRPC serveur et client, SOAP via l'exécuteur du dashboard, workflow de l'orchestrateur : même identifiant sur tous ses appels SOAP/REST/GraphQL (requête HTTP, puis alerte gRPC → WF-…) |
 
 ## Structure du dépôt
 

@@ -30,8 +30,10 @@ consultable en REST, et diffusée en direct (SSE).
   durée en ms, tentative, message.
 - **Relance** (`POST /workflows/{id}/relancer`, workflow en `ECHEC` uniquement) : ne rejoue que les étapes
   manquantes. La fiche déjà créée n'est pas recréée, et une feuille déjà émise n'est jamais réémise.
-- L'identifiant du workflow est dans le **MDC** (`[WF-2026-000001]` sur chaque ligne de log), et chaque changement
-  d'état est publié sur le flux SSE.
+- **Identifiant de corrélation** (MDC `correlationId`, en tête de chaque ligne de log, transmis sur chaque appel
+  sortant : `X-Correlation-Id` en REST, GraphQL et SOAP, `x-correlation-id` en gRPC). Pour une alerte reçue par gRPC, c'est
+  l'identifiant du workflow (`[WF-2026-000001]`) ; pour `POST /workflows/declencher` ou `/relancer`, celui de la
+  requête. La file par patient recopie le MDC sur le thread du workflow. Chaque changement d'état est publié sur le flux SSE.
 
 ### Diagramme de séquence
 

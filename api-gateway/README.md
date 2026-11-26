@@ -14,8 +14,9 @@ http://localhost:8080. La gateway relaie chaque appel vers le bon service, et aj
   - **CORS** : seul http://localhost:4200 (le client Angular) est autorisé, préflights `OPTIONS` compris. La même
     vérification d'origine protège la poignée de main WebSocket : un autre site reçoit 403.
   - **`X-Correlation-Id`** : repris de la requête s'il est fourni (et valide), sinon généré. Il est transmis au service,
-    renvoyé dans la réponse et écrit dans le journal de la gateway :
-    `[3f2c…] GET /api/portail/patients/PAT-0001 → portail-patient 200 OK (12 ms)`.
+    renvoyé dans la réponse et écrit en tête de ligne du journal, au même format que dans les services
+    (MDC `correlationId`, voir [Suivre une requête](../README.md#suivre-une-requête-dans-tous-les-services-bonus)) :
+    `[3f2c…] 2026-11-26T12:06:24.253+01:00  INFO … CorrelationIdFilter : GET /api/portail/patients/PAT-0001 → portail-patient 200 OK (12 ms)`.
   - **Timeout de réponse** : 5 s ; 10 s pour GraphQL (réponses partielles, voir Choix techniques) ; désactivé pour le
     flux SSE et les WebSocket.
   - **Circuit breaker par route**, avec un repli au format du contrat quand un service ne répond pas.

@@ -125,6 +125,16 @@ Une base PostgreSQL par service (database-per-service).
     menu selon les rôles du jeton, patient limité à son `patient_id`, écran `/acces-refuse` ; WebSocket `?access_token=` ;
     SSE via `@microsoft/fetch-event-source` (en-tête Authorization).
   - Scripts `-ViaGateway` : jeton via `docs/tests/jeton-keycloak.ps1` (client `scripts`, `-Utilisateur`, admin par défaut).
+- [ ] Bonus 3 : identifiant de corrélation dans tous les services
+  - Classe `Correlation` recopiée dans chaque service (paquetage `correlation`, pas de bibliothèque partagée) : en-tête
+    `X-Correlation-Id`, métadonnée gRPC `x-correlation-id`, clé MDC `correlationId`, valeur `[A-Za-z0-9._:-]{1,64}` sinon UUID.
+  - Entrée : `FiltreCorrelation` (servlet, portail/dashboard/cnam/orchestrateur, une ligne par requête sauf /actuator) ;
+    `IntercepteurCorrelationServeur` (`@GlobalServerInterceptor`, telemetrie, sauf grpc.health).
+  - Sortie : `RestClientCustomizer` (REST + GraphQL), `IntercepteurCorrelationSoap` (en-tête HTTP, WSDL inchangé),
+    `IntercepteurCorrelationGrpc` (`@GlobalClientInterceptor`) ; MDC recopié par `ExecuteurParPatient` et
+    `ExecuteurAvecCorrelation` (dashboard). Alerte gRPC sans requête → identifiant = WF-… ; capteur : `CAP-0001-<date>`.
+  - Format de journal commun (`logging.pattern.console`) : `[corrId] date niveau [thread] logger : message`, gateway comprise.
+  - Orchestrateur `mem_limit: 768m` (85 % de 512m mesurés). Dockerfiles : 3 essais Maven (-U), eol=lf.
 - [ ] Étape 8 : tests et documentation
 
 Ordre de réalisation : 7 → 5 → 6 → bonus (Keycloak) → 8.
