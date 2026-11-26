@@ -161,6 +161,23 @@ class TelemetrieGrpcIntegrationTest {
         }
     }
 
+    // ===================== Corrélation =====================
+
+    /** L'intercepteur de corrélation est appliqué par Spring gRPC au vrai serveur (@GlobalServerInterceptor). */
+    @Test
+    void correlation_metadonneeRenvoyeeParLeServeur() {
+        io.grpc.Metadata envoyees = new io.grpc.Metadata();
+        envoyees.put(tn.sahticonnect.telemetrie.correlation.IntercepteurCorrelationServeur.CLE, "demo-telemetrie-1");
+        AtomicReference<io.grpc.Metadata> recues = new AtomicReference<>();
+
+        stubBloquant.withInterceptors(io.grpc.stub.MetadataUtils.newAttachHeadersInterceptor(envoyees),
+                        io.grpc.stub.MetadataUtils.newCaptureMetadataInterceptor(recues, new AtomicReference<>()))
+                .dernieresMesures(DernieresMesuresRequest.newBuilder().setIdentifiantPatient("PAT-0001").build());
+
+        assertThat(recues.get().get(tn.sahticonnect.telemetrie.correlation.IntercepteurCorrelationServeur.CLE))
+                .isEqualTo("demo-telemetrie-1");
+    }
+
     // ===================== EnvoyerMesures =====================
 
     @Test

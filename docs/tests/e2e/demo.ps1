@@ -209,5 +209,17 @@ foreach ($numero in $feuilles) {
 $montants = @($details | Where-Object { $actives -contains $_.numeroFeuilleSoins } | ForEach-Object { "{0} ({1:N3} DT)" -f $_.numeroFeuilleSoins, $_.montantTotal })
 Write-Host ""
 Write-Host ("   Facture(s) active(s) : {0} → {1}" -f $actives.Count, ($montants -join ", ")) -ForegroundColor Cyan
+
+# ===================== 6. Corrélation =====================
+# alerte reçue par gRPC (sans requête HTTP) : l'identifiant de corrélation du workflow est son propre id (WF-…),
+# transmis sur chaque appel sortant (X-Correlation-Id en HTTP, x-correlation-id en gRPC)
+$dernier = ($details | Sort-Object id | Select-Object -Last 1).id
+Write-Host ""
+Write-Host "6. Suivre le workflow $dernier dans les journaux de tous les services :" -ForegroundColor Cyan
+if ($Docker) {
+    Write-Host "      docker compose logs | Select-String `"$dernier`""
+} else {
+    Write-Host "      chercher [$dernier] dans la console de chaque service (orchestrateur, dashboard, CNAM, portail)"
+}
 Write-Host ""
 Write-Host "Démo terminée." -ForegroundColor Green

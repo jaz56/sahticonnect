@@ -143,6 +143,9 @@ services:
   # ---------- orchestrateur-service : attend que les 4 autres soient prêts ----------
   orchestrateur:
     <<: *service-java
+    # 768m (tas max 576 Mo) : à 512m, 85 % étaient occupés au repos (clients des 4 protocoles, Resilience4j,
+    # un thread virtuel par workflow), trop près de la limite pendant une rafale d'alertes
+    mem_limit: 768m
     build: ./orchestrateur-service
     image: sahticonnect/orchestrateur-service
     ports:

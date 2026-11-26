@@ -15,10 +15,15 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import tn.sahticonnect.orchestrateur.correlation.Correlation;
 import tn.sahticonnect.orchestrateur.entity.EtatWorkflow;
+import tn.sahticonnect.orchestrateur.entity.NiveauAlerte;
+import tn.sahticonnect.orchestrateur.entity.TypeMesure;
 import tn.sahticonnect.orchestrateur.entity.NomEtape;
 import tn.sahticonnect.orchestrateur.entity.Workflow;
 import tn.sahticonnect.orchestrateur.repository.WorkflowRepository;
+import tn.sahticonnect.orchestrateur.service.AlerteRecue;
+import tn.sahticonnect.orchestrateur.service.OrchestrateurAlertes;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -57,6 +62,8 @@ class OrchestrateurIntegrationTest {
     private WorkflowRepository repository;
     @Autowired
     private CircuitBreakerRegistry circuitBreakers;
+    @Autowired
+    private OrchestrateurAlertes orchestrateur;
 
     @BeforeAll
     static void demarrer() {
@@ -330,5 +337,46 @@ class OrchestrateurIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].id").value(second))
                 .andExpect(jsonPath("$[*].etat", org.hamcrest.Matchers.everyItem(org.hamcrest.Matchers.is("FACTUREE"))));
+    }
+
+    // ===================== Corrélation =====================
+
+    /** Chaque appel sortant (SOAP, REST, GraphQL) du workflow porte l'identifiant de corrélation attendu. */
+    private static void verifierCorrelationPartout(String attendu) {
+        var requetes = SERVICES.getAllServeEvents();
+        assertThat(requetes).as("le workflow a appelé les 3 services HTTP").hasSizeGreaterThanOrEqualTo(6);
+        requetes.forEach(e -> assertThat(e.getRequest().getHeader(Correlation.ENTETE))
+                .as("%s %s", e.getRequest().getMethod(), e.getRequest().getUrl())
+                .isEqualTo(attendu));
+        assertThat(requetes).extracting(e -> e.getRequest().getUrl())
+                .contains("/ws", "/graphql", "/urgences/ambulances");
+    }
+
+    @Test
+    void correlation_requeteHttp_identifiantPropageAuxAppelsSoapRestGraphQl() throws Exception {
+        String location = mvc.perform(MockMvcRequestBuilders.post("/workflows/declencher").header(Correlation.ENTETE, "test-corr-42")
+                        .contentType(MediaType.APPLICATION_JSON).content("""
+                        {"alerteId":"%s","patientId":"PAT-0001","niveau":"CRITIQUE","typeMesure":"FREQUENCE_CARDIAQUE",
+                         "valeur":142,"seuilFranchi":"FC > 130","message":"Alerte","horodatage":"2026-11-24T09:47:58+01:00"}"""
+                        .formatted(nouvelleAlerte())))
+                .andExpect(status().isAccepted())
+                .andExpect(header().string(Correlation.ENTETE, "test-corr-42"))
+                .andReturn().getResponse().getHeader("Location");
+
+        Workflow wf = attendreFin(location.substring(location.lastIndexOf('/') + 1));
+        assertThat(wf.getEtat()).isEqualTo(EtatWorkflow.FACTUREE);
+        verifierCorrelationPartout("test-corr-42");
+    }
+
+    @Test
+    void correlation_alerteGrpcSansRequete_identifiantDuWorkflow() {
+        // comme l'abonnement gRPC : appel direct, sans requête HTTP donc sans identifiant sur le thread
+        var reception = orchestrateur.recevoir(new AlerteRecue(nouvelleAlerte(), "PAT-0001", NiveauAlerte.CRITIQUE,
+                TypeMesure.FREQUENCE_CARDIAQUE, 142, "FC > 130", "Alerte",
+                java.time.OffsetDateTime.parse("2026-11-24T09:47:58+01:00")));
+
+        Workflow wf = attendreFin(reception.workflow().getId());
+        assertThat(wf.getEtat()).isEqualTo(EtatWorkflow.FACTUREE);
+        verifierCorrelationPartout(wf.getId());
     }
 }

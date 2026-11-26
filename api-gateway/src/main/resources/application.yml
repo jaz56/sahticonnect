@@ -186,5 +186,8 @@ management:
       access: read_only
 
 logging:
+  # même format dans tous les services : [identifiant de corrélation] en tête de ligne (MDC correlationId)
+  pattern:
+    console: "[%X{correlationId:--}] %d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %5p [%15.15t] %-40.40logger{39} : %m%n%wEx"
   level:
     tn.sahticonnect.gateway: INFO

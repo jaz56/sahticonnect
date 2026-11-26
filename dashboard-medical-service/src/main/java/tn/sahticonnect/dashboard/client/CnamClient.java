@@ -4,6 +4,8 @@ import org.springframework.core.NestedExceptionUtils;
 import org.springframework.oxm.jaxb.Jaxb2Marshaller;
 import org.springframework.stereotype.Component;
 import org.springframework.ws.client.core.WebServiceTemplate;
+import org.springframework.ws.client.support.interceptor.ClientInterceptor;
+import tn.sahticonnect.dashboard.correlation.IntercepteurCorrelationSoap;
 import org.springframework.ws.soap.client.SoapFaultClientException;
 import org.springframework.ws.transport.http.HttpUrlConnectionMessageSender;
 import tn.sahticonnect.dashboard.client.ModelesDistants.ActeCote;
@@ -42,6 +44,8 @@ public class CnamClient {
         this.template = new WebServiceTemplate(marshaller);
         this.template.setDefaultUri(proprietes.cnam().url());
         this.template.setMessageSender(transport);
+        // en-tête X-Correlation-Id de la requête GraphQL en cours sur chaque appel SOAP
+        this.template.setInterceptors(new ClientInterceptor[]{new IntercepteurCorrelationSoap()});
     }
 
     /** consulterHistorique : vignette de l'assuré et historique de soins. */

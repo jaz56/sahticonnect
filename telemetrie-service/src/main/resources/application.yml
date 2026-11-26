@@ -26,3 +26,8 @@ telemetrie:
   patients: PAT-0001, PAT-0002, PAT-0003, PAT-0004, PAT-0005
   historique-par-type: 100        # mesures gardées en mémoire par patient et par type
   anti-rebond: 60s                # une alerte max. par (patient, type, niveau) sur cette fenêtre
+
+logging:
+  # même format dans tous les services : [identifiant de corrélation] en tête de ligne (MDC correlationId)
+  pattern:
+    console: "[%X{correlationId:--}] %d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %5p [%15.15t] %-40.40logger{39} : %m%n%wEx"

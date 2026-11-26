@@ -8,6 +8,8 @@ import jakarta.xml.bind.JAXBElement;
 import org.springframework.oxm.jaxb.Jaxb2Marshaller;
 import org.springframework.stereotype.Component;
 import org.springframework.ws.client.core.WebServiceTemplate;
+import org.springframework.ws.client.support.interceptor.ClientInterceptor;
+import tn.sahticonnect.orchestrateur.correlation.IntercepteurCorrelationSoap;
 import org.springframework.ws.soap.SoapFault;
 import org.springframework.ws.soap.SoapFaultDetail;
 import org.springframework.ws.soap.SoapFaultDetailElement;
@@ -83,6 +85,8 @@ public class CnamClient {
         this.template = new WebServiceTemplate(marshaller);
         this.template.setDefaultUri(proprietes.cnam().url());
         this.template.setMessageSender(transport);
+        // en-tête X-Correlation-Id sur chaque appel (suivi d'un workflow jusque dans les journaux de la CNAM)
+        this.template.setInterceptors(new ClientInterceptor[]{new IntercepteurCorrelationSoap()});
         try {
             this.datatypeFactory = DatatypeFactory.newInstance();
         } catch (DatatypeConfigurationException e) {

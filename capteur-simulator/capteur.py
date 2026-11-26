@@ -121,14 +121,17 @@ def main():
     args = parser.parse_args()
     args.capteur = args.capteur or "CAP-" + args.patient.split("-")[-1]
 
+    # identifiant de corrélation du flux (métadonnée gRPC x-correlation-id) : retrouvé dans les journaux de telemetrie
+    correlation = f"{args.capteur}-{time.strftime('%Y%m%dT%H%M%S')}"
     print(f"{CYAN}Capteur {args.capteur} → {args.hote} | patient {args.patient} | scénario {args.scenario} "
-          f"| bascule à {args.bascule:g} s | durée {args.duree:g} s{RESET}")
+          f"| bascule à {args.bascule:g} s | durée {args.duree:g} s | corrélation {correlation}{RESET}")
 
     envoyees = {}
     arret = threading.Event()
     with grpc.insecure_channel(args.hote) as canal:
         stub = pb_grpc.TelemetrieStub(canal)
-        appel = stub.EnvoyerMesures(generer_mesures(args, envoyees, arret))
+        appel = stub.EnvoyerMesures(generer_mesures(args, envoyees, arret),
+                                    metadata=(("x-correlation-id", correlation),))
         try:
             for accuse in appel:
                 afficher_accuse(accuse, envoyees)

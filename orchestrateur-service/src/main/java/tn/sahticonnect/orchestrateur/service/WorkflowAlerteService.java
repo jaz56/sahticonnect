@@ -12,6 +12,7 @@ import tn.sahticonnect.orchestrateur.client.ErreurMetierException;
 import tn.sahticonnect.orchestrateur.client.Pannes;
 import tn.sahticonnect.orchestrateur.client.PortailClient;
 import tn.sahticonnect.orchestrateur.config.OrchestrateurProperties;
+import tn.sahticonnect.orchestrateur.correlation.Correlation;
 import tn.sahticonnect.orchestrateur.entity.Etape;
 import tn.sahticonnect.orchestrateur.entity.EtatWorkflow;
 import tn.sahticonnect.orchestrateur.entity.NiveauAlerte;
@@ -109,7 +110,12 @@ public class WorkflowAlerteService {
      * toute erreur inattendue termine le workflow en ECHEC.
      */
     public Workflow executer(String workflowId) {
-        MDC.put("workflow", workflowId);
+        // identifiant de corrélation : celui de la requête HTTP qui a déclenché ou relancé le workflow (recopié
+        // par la file du patient), sinon (alerte reçue par gRPC, sans requête) l'identifiant du workflow lui-même
+        boolean identifiantPose = Correlation.courant() == null;
+        if (identifiantPose) {
+            MDC.put(Correlation.CLE_MDC, workflowId);
+        }
         Workflow wf = repository.findById(workflowId).orElseThrow(() -> new WorkflowIntrouvableException(workflowId));
         try {
             wf.setEnCours(true);
@@ -139,7 +145,9 @@ public class WorkflowAlerteService {
             wf = enregistrer(wf, true);
             log.info("Workflow {} terminé : {}{}", wf.getId(), wf.getEtat(),
                     wf.getEtapeEnEchec() != null ? " (étape en cause : " + wf.getEtapeEnEchec() + ")" : "");
-            MDC.remove("workflow");
+            if (identifiantPose) {
+                MDC.remove(Correlation.CLE_MDC);
+            }
         }
         return wf;
     }

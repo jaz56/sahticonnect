@@ -4,6 +4,7 @@ import graphql.scalars.ExtendedScalars;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.graphql.execution.RuntimeWiringConfigurer;
+import tn.sahticonnect.dashboard.correlation.ExecuteurAvecCorrelation;
 
 import java.time.Clock;
 import java.time.ZoneId;
@@ -27,10 +28,11 @@ public class ApplicationConfig {
 
     /**
      * Appels distants (gRPC, SOAP) lancés en parallèle : un thread virtuel par appel, pour qu'un champ
-     * lent n'en bloque pas un autre dans la même requête GraphQL.
+     * lent n'en bloque pas un autre dans la même requête GraphQL. Le MDC (identifiant de corrélation de la
+     * requête) suit chaque appel sur son thread.
      */
     @Bean(destroyMethod = "shutdown")
     public ExecutorService executeurAppelsDistants() {
-        return Executors.newVirtualThreadPerTaskExecutor();
+        return new ExecuteurAvecCorrelation(Executors.newVirtualThreadPerTaskExecutor());
     }
 }

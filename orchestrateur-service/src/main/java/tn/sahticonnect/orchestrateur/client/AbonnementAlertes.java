@@ -4,6 +4,8 @@ import io.grpc.Channel;
 import io.grpc.Context;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+import org.slf4j.MDC;
+import tn.sahticonnect.orchestrateur.correlation.Correlation;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.SmartLifecycle;
 import tn.sahticonnect.orchestrateur.entity.NiveauAlerte;
@@ -90,6 +92,15 @@ public class AbonnementAlertes implements SmartLifecycle {
                 .build();
         Context.CancellableContext nouveau = Context.current().withCancellation();
         contexte = nouveau;
+        // identifiant de corrélation de l'abonnement (métadonnée x-correlation-id, journaux de telemetrie)
+        String idAbonnement = "orchestrateur-abonnement-" + connexions;
+        try (MDC.MDCCloseable c = MDC.putCloseable(Correlation.CLE_MDC, idAbonnement)) {
+            souscrire(nouveau, requete);
+            log.info("Abonné aux alertes de telemetrie-service (tentative n°{})", connexions);
+        }
+    }
+
+    private void souscrire(Context.CancellableContext nouveau, SouscrireAlertesRequest requete) {
         nouveau.run(() -> stub.souscrireAlertes(requete, new StreamObserver<>() {
             @Override
             public void onNext(Alerte alerte) {
@@ -111,7 +122,6 @@ public class AbonnementAlertes implements SmartLifecycle {
                 planifierReconnexion("flux terminé par telemetrie-service");
             }
         }));
-        log.info("Abonné aux alertes de telemetrie-service (tentative n°{})", connexions);
     }
 
     private void planifierReconnexion(String raison) {

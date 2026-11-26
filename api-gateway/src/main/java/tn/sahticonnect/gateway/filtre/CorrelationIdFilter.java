@@ -2,6 +2,7 @@ package tn.sahticonnect.gateway.filtre;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.cloud.gateway.route.Route;
 import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
 import org.springframework.core.Ordered;
@@ -29,6 +30,8 @@ import java.util.regex.Pattern;
 public class CorrelationIdFilter implements WebFilter, Ordered {
 
     public static final String ENTETE = "X-Correlation-Id";
+    /** Clé MDC lue par le format des journaux (logging.pattern.console), la même dans tous les services. */
+    public static final String CLE_MDC = "correlationId";
     /** Valeur fournie par le client : courte et sans caractères de contrôle (pas d'injection dans les logs). */
     private static final Pattern VALEUR_ACCEPTEE = Pattern.compile("[A-Za-z0-9._:-]{1,64}");
     private static final Logger log = LoggerFactory.getLogger(CorrelationIdFilter.class);
@@ -50,9 +53,13 @@ public class CorrelationIdFilter implements WebFilter, Ordered {
         long debut = System.nanoTime();
         return chain.filter(echange).doFinally(signal -> {
             Route route = echange.getAttribute(ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR);
-            log.info("[{}] {} {} → {} {} ({} ms)", id, requete.getMethod(), requete.getURI().getRawPath(),
-                    route != null ? route.getId() : "-", echange.getResponse().getStatusCode(),
-                    (System.nanoTime() - debut) / 1_000_000);
+            // MDC le temps de la ligne (réactif : pas de thread attitré à la requête) → « [id] » en tête de ligne,
+            // même format que dans les services
+            try (MDC.MDCCloseable c = MDC.putCloseable(CLE_MDC, id)) {
+                log.info("{} {} → {} {} ({} ms)", requete.getMethod(), requete.getURI().getRawPath(),
+                        route != null ? route.getId() : "-", echange.getResponse().getStatusCode(),
+                        (System.nanoTime() - debut) / 1_000_000);
+            }
         });
     }
 }

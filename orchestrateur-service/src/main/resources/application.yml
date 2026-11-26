@@ -39,10 +39,10 @@ springdoc:
     path: /swagger-ui.html
     url: /openapi/orchestrateur.yaml
 
-# Identifiant du workflow dans chaque ligne de log (MDC)
 logging:
+  # même format dans tous les services : [identifiant de corrélation] en tête de ligne (MDC correlationId)
   pattern:
-    level: "%5p [%X{workflow:-}]"
+    console: "[%X{correlationId:--}] %d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %5p [%15.15t] %-40.40logger{39} : %m%n%wEx"
 
 # Services appelés par l'orchestrateur
 sahti:

@@ -1,6 +1,8 @@
 package tn.sahticonnect.orchestrateur.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
+import tn.sahticonnect.orchestrateur.correlation.Correlation;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -61,8 +63,11 @@ public class OrchestrateurAlertes {
             // la même alerte reçue deux fois au même instant : la contrainte unique a tranché
             return new Reception(repository.findByAlerteId(alerte.alerteId()).orElseThrow(), false);
         }
-        log.info("Alerte {} {} pour {} → workflow {}", alerte.niveau(), alerte.alerteId(), alerte.patientId(), workflow.getId());
-        soumettre(workflow);
+        // alerte reçue par gRPC (aucune requête HTTP, donc aucun identifiant) : le workflow sert d'identifiant
+        try (MDC.MDCCloseable c = Correlation.courant() == null ? MDC.putCloseable(Correlation.CLE_MDC, workflow.getId()) : null) {
+            log.info("Alerte {} {} pour {} → workflow {}", alerte.niveau(), alerte.alerteId(), alerte.patientId(), workflow.getId());
+            soumettre(workflow);
+        }
         return new Reception(workflow, true);
     }
 
