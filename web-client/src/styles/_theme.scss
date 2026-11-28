@@ -1,0 +1,78 @@
+// Thème Material 3 surchargé : les composants Material (boutons, champs, sélecteurs, pagination, menus…) lisent
+// les variables --mat-sys-*, que l'on fait pointer vers les tokens SahtiConnect. Aucun bouton en pilule
+// (coins « full » ramenés à 6 px), pas d'ombre sauf pour ce qui flotte.
+@use '@angular/material' as mat;
+
+html {
+  @include mat.theme(
+    (
+      color: (primary: mat.$cyan-palette, theme-type: light),
+      typography: (plain-family: var(--sc-police), brand-family: var(--sc-police), bold-weight: 600, medium-weight: 500, regular-weight: 400),
+      density: 0,
+    )
+  );
+
+  // ---------- Couleurs → tokens ----------
+  --mat-sys-primary: var(--sc-accent);
+  --mat-sys-on-primary: var(--sc-sur-accent);
+  --mat-sys-primary-container: var(--sc-accent-pale);
+  --mat-sys-on-primary-container: var(--sc-accent);
+  --mat-sys-secondary: var(--sc-accent);
+  --mat-sys-on-secondary: var(--sc-sur-accent);
+  --mat-sys-secondary-container: var(--sc-accent-pale);
+  --mat-sys-on-secondary-container: var(--sc-encre);
+  --mat-sys-tertiary: var(--sc-accent);
+  --mat-sys-tertiary-container: var(--sc-accent-pale);
+  --mat-sys-error: var(--sc-critique);
+  --mat-sys-error-container: var(--sc-critique-pale);
+  --mat-sys-on-error-container: var(--sc-critique);
+
+  --mat-sys-background: var(--sc-fond);
+  --mat-sys-on-background: var(--sc-encre);
+  --mat-sys-surface: var(--sc-surface);
+  --mat-sys-surface-bright: var(--sc-surface);
+  --mat-sys-surface-dim: var(--sc-fond);
+  --mat-sys-surface-container-lowest: var(--sc-surface);
+  --mat-sys-surface-container-low: var(--sc-surface);
+  --mat-sys-surface-container: var(--sc-surface);
+  --mat-sys-surface-container-high: var(--sc-surface);
+  --mat-sys-surface-container-highest: var(--sc-fond);
+  --mat-sys-surface-variant: var(--sc-fond);
+  --mat-sys-on-surface: var(--sc-encre);
+  --mat-sys-on-surface-variant: var(--sc-encre-secondaire);
+  --mat-sys-outline: var(--sc-bordure-forte);
+  --mat-sys-outline-variant: var(--sc-bordure);
+  --mat-sys-inverse-surface: var(--sc-encre);
+  --mat-sys-inverse-on-surface: var(--sc-surface);
+
+  // ---------- Formes ----------
+  --mat-sys-corner-extra-small: var(--sc-rayon-badge);
+  --mat-sys-corner-small: var(--sc-rayon);
+  --mat-sys-corner-medium: var(--sc-rayon);
+  --mat-sys-corner-large: var(--sc-rayon);
+  --mat-sys-corner-extra-large: var(--sc-rayon);
+  --mat-sys-corner-full: var(--sc-rayon);
+
+  // ---------- Ombres : seulement ce qui flotte (menus, listes déroulantes, dialogues, infobulles) ----------
+  --mat-sys-level1: none;
+  --mat-sys-level2: var(--sc-ombre-flottante);
+  --mat-sys-level3: var(--sc-ombre-flottante);
+  --mat-sys-level4: var(--sc-ombre-flottante);
+  --mat-sys-level5: var(--sc-ombre-flottante);
+
+  // ---------- Composants ----------
+  @include mat.button-overrides((
+    filled-container-shape: var(--sc-rayon),
+    outlined-container-shape: var(--sc-rayon),
+    text-container-shape: var(--sc-rayon),
+    outlined-outline-color: var(--sc-bordure-forte),
+  ));
+  @include mat.paginator-overrides((
+    container-text-font: var(--sc-police-mono),
+    container-background-color: transparent,
+  ));
+  @include mat.tooltip-overrides((
+    container-color: var(--sc-encre),
+    supporting-text-color: var(--sc-surface),
+  ));
+}

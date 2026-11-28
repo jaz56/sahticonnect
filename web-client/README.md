@@ -134,6 +134,25 @@ npm run e2e                # connexion par la vraie page Keycloak, puis : ahmed 
 npm run captures           # régénère docs/captures/
 ```
 
+## Système de design (refonte visuelle, phase A)
+
+Direction « dossier clinique » : sobre, dense, lisible, inspirée des logiciels hospitaliers et des moniteurs de constantes.
+
+| Élément | Où | Contenu |
+|---|---|---|
+| Tokens | `src/styles/_tokens.scss` | Couleurs (un seul accent `#0F5C63`, gravité réservée aux niveaux), polices, échelle de 6 tailles, grille de 8 px, rayons, durées |
+| Thème Material 3 | `src/styles/_theme.scss` | Variables `--mat-sys-*` pointées vers les tokens, coins de 6 px (pas de pilule), ombres réservées à ce qui flotte |
+| Base et composants | `src/styles/_base.scss`, `_composants.scss` | Monospace à chiffres tabulaires (`.sc-mono`), focus visible, tableau de données (lignes de 48 px, petites capitales) |
+| Composants | `src/app/shared/ui/` | `en-tete-page`, `bloc-section`, `badge-niveau`, `valeur-mono`, `moniteur-constante`, `etat-vide`, `etat-erreur`, puce « Service indisponible » |
+| Démonstration | `/design` (`ng serve` seulement) | Couleurs avec contrastes mesurés, typographie, espacements, formes, tous les composants |
+
+Polices hébergées avec l'application (paquets `@fontsource`, aucune requête vers un service externe) : **Source Sans 3**
+pour l'interface (alternative proposée : Atkinson Hyperlegible Next, une ligne à changer dans les tokens), **IBM Plex Mono**
+pour tous les chiffres et identifiants, **Material Symbols Outlined** (graisse 300, 20 px) pour les icônes.
+
+Phase A : structure de l'application (barre latérale, barre du haut), **fiche patient** et **workflows** refaits ; les autres
+écrans héritent des tokens et du thème mais gardent leur mise en page (phase B après validation du style).
+Captures avant/après : [`docs/captures/refonte/`](../docs/captures/refonte/).
 ## Choix techniques
 
 - **Angular 22.3** (dernière version stable) : composants standalone, signals, détection des changements sans zone.js

@@ -1,0 +1,164 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
+.moniteur {
+  // remplit sa case de la bande des moniteurs (filets de 1 px entre les cases, dessinés par le parent)
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sc-e-8);
+  width: 100%;
+  height: 100%;
+  padding: var(--sc-e-16);
+  background: var(--sc-surface);
+  cursor: pointer;
+  position: relative;
+  transition: background-color var(--sc-duree) var(--sc-courbe);
+
+  &:hover {
+    background: var(--sc-surface-sourde);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--sc-accent);
+    outline-offset: -2px;
+  }
+
+  // sélection (courbe détaillée affichée en dessous) : filet d'accent en bas, comme un onglet
+  &[aria-pressed='true']::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 3px;
+    background: var(--sc-accent);
+  }
+
+  // niveau anormal : filet de gravité en haut et fond pâle
+  &.critique,
+  &.elevee {
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      height: 3px;
+      background: var(--teinte);
+    }
+  }
+
+  &.critique {
+    --teinte: var(--sc-critique);
+    background: var(--sc-critique-pale);
+  }
+
+  &.elevee {
+    --teinte: var(--sc-elevee);
+    background: var(--sc-elevee-pale);
+  }
+}
+
+// pied : heure de la mesure, et badge du niveau s'il est anormal (hauteur réservée : rien ne bouge)
+.pied {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sc-e-8);
+  min-height: 24px;
+}
+
+.libelle {
+  font-size: var(--sc-t-14);
+  line-height: var(--sc-lh-14);
+  font-weight: var(--sc-graisse-moyenne);
+  color: var(--sc-encre-secondaire);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mesure {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sc-e-8);
+}
+
+.valeur {
+  font-size: var(--sc-t-32);
+  line-height: var(--sc-lh-32);
+  font-weight: var(--sc-graisse-moyenne);
+  color: var(--sc-encre);
+}
+
+.unite {
+  font-size: var(--sc-t-14);
+  line-height: var(--sc-lh-14);
+  color: var(--sc-encre-tertiaire);
+}
+
+// ---------- mini-courbe : trait de 2 px, gris tant que le niveau est normal ----------
+.trace {
+  position: relative;
+  display: block;
+  height: 32px;
+  --trait: var(--sc-encre-tertiaire);
+  --point: var(--sc-accent);
+
+  svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+
+  polyline {
+    fill: none;
+    stroke: var(--trait);
+    stroke-width: 2;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+}
+
+.critique .trace,
+.elevee .trace {
+  --trait: var(--teinte);
+  --point: var(--teinte);
+}
+
+// dernière mesure : point de 8 px cerclé de 2 px de la couleur de fond
+.dernier {
+  position: absolute;
+  right: -4px;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: var(--point);
+  box-shadow: 0 0 0 2px var(--sc-surface);
+}
+
+.ligne-vide {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  border-top: var(--sc-trait) solid var(--sc-bordure);
+}
+
+.heure {
+  font-size: var(--sc-t-12);
+  line-height: var(--sc-lh-12);
+  color: var(--sc-encre-tertiaire);
+}
+
+.sep {
+  display: inline-block;
+  margin: 0 -0.28em;
+}

@@ -1,70 +1,97 @@
-<mat-toolbar class="barre">
-  @if (etroit()) {
-    <button mat-icon-button (click)="tiroir.toggle()" aria-label="Menu"><mat-icon>menu</mat-icon></button>
-  }
-  <a routerLink="/" class="marque">
-    <mat-icon class="logo">cardiology</mat-icon>
-    <span>SahtiConnect</span>
-  </a>
-  <span class="espace"></span>
+<a class="evitement" href="#contenu">Aller au contenu</a>
 
-  @if (auth.utilisateur(); as u) {
-    <!-- le médecin et l'admin choisissent le patient ; un patient est toujours sur son propre dossier -->
-    @if (auth.estPatient()) {
-      <span class="mon-dossier" data-testid="mon-dossier">
-        <mat-icon>folder_shared</mat-icon> {{ session.patientId() }}
-      </span>
-    } @else {
-      <mat-form-field class="choix-patient" appearance="outline" subscriptSizing="dynamic">
-        <mat-select [value]="session.patientId()" (valueChange)="session.choisirPatient($event)" aria-label="Patient"
-                    data-testid="choix-patient">
-          @for (p of patients; track p.id) {
-            <mat-option [value]="p.id">{{ p.id }} · {{ p.nom }}</mat-option>
-          }
-        </mat-select>
-      </mat-form-field>
-    }
-    <span class="utilisateur" data-testid="utilisateur" [matTooltip]="u.login + ' · ' + u.roles.join(', ')">
-      <mat-icon>{{ auth.estPatient() ? 'person' : auth.roles().includes('ADMIN') ? 'admin_panel_settings' : 'stethoscope' }}</mat-icon>
-      @if (!etroit()) { <span>{{ u.nom }} <small>({{ u.roles.join(', ') }})</small></span> }
-    </span>
-    <button mat-stroked-button (click)="auth.deconnecter()" data-testid="deconnexion">
-      <mat-icon>logout</mat-icon> @if (!etroit()) { Déconnexion }
-    </button>
-  } @else if (auth.connecte() === false) {
-    <button mat-flat-button (click)="auth.connecter()" data-testid="connexion"><mat-icon>login</mat-icon> Se connecter</button>
-  }
-</mat-toolbar>
+<!-- ===================== Barre latérale : marque, sections selon les rôles du jeton ===================== -->
+<aside id="barre-laterale" class="barre-laterale" [class.ouverte]="menuOuvert()" [attr.aria-hidden]="etroit() && !menuOuvert() ? 'true' : null"
+       [attr.inert]="etroit() && !menuOuvert() ? '' : null">
+  <a routerLink="/" class="marque" (click)="fermerMenu()">SahtiConnect</a>
 
-<mat-sidenav-container class="conteneur">
-  <mat-sidenav #tiroir [mode]="etroit() ? 'over' : 'side'" [opened]="!etroit()" class="menu">
-    <mat-nav-list>
-      <a mat-list-item routerLink="/" routerLinkActive="actif" [routerLinkActiveOptions]="{ exact: true }"
-         (click)="etroit() && tiroir.close()">
-        <mat-icon matListItemIcon>home</mat-icon>
-        <span matListItemTitle>Accueil</span>
-      </a>
-      @for (section of sections(); track section.titre) {
-        <h3 class="titre-menu">{{ section.titre === 'Dossier patient' && auth.estPatient() ? 'Mon dossier' : section.titre }}</h3>
+  <nav class="navigation" aria-label="Navigation principale">
+    <ul>
+      <li>
+        <a routerLink="/" routerLinkActive="actif" [routerLinkActiveOptions]="{ exact: true }" (click)="fermerMenu()">
+          <mat-icon aria-hidden="true">home</mat-icon><span class="libelle">Accueil</span>
+        </a>
+      </li>
+    </ul>
+    @for (section of sections(); track section.titre) {
+      <p class="titre-section" [id]="'section-' + $index">
+        {{ section.titre === 'Dossier patient' && auth.estPatient() ? 'Mon dossier' : section.titre }}
+      </p>
+      <ul [attr.aria-labelledby]="'section-' + $index">
         @for (entree of section.entrees; track entree.lien) {
-          <a mat-list-item [routerLink]="entree.lien" routerLinkActive="actif" (click)="etroit() && tiroir.close()">
-            <mat-icon matListItemIcon>{{ entree.icone }}</mat-icon>
-            <span matListItemTitle>{{ entree.libelle }}</span>
-            <span matListItemLine class="protocole">{{ entree.protocole }}</span>
-          </a>
+          <li>
+            <a [routerLink]="entree.lien" routerLinkActive="actif" (click)="fermerMenu()">
+              <mat-icon aria-hidden="true">{{ entree.icone }}</mat-icon>
+              <span class="libelle">{{ entree.libelle }}</span>
+              <span class="protocole sc-mono" aria-hidden="true">{{ entree.protocole }}</span>
+            </a>
+          </li>
         }
-      }
-    </mat-nav-list>
-    <p class="pied-menu">
-      @if (auth.connecte()) {
-        Toutes les requêtes passent par l'API Gateway (localhost:8080), avec le jeton OIDC de Keycloak.
-      } @else {
-        Connectez-vous (Keycloak) pour accéder aux écrans de votre rôle.
-      }
-    </p>
-  </mat-sidenav>
+      </ul>
+    }
+  </nav>
 
-  <mat-sidenav-content class="contenu">
+  <p class="pied">
+    @if (auth.connecte()) {
+      Toutes les requêtes passent par l'API Gateway (localhost:8080), avec le jeton OIDC de Keycloak.
+    } @else {
+      Connectez-vous (Keycloak) pour accéder aux écrans de votre rôle.
+    }
+  </p>
+</aside>
+
+@if (etroit() && menuOuvert()) {
+  <button type="button" class="voile" aria-label="Fermer le menu" (click)="fermerMenu()"></button>
+}
+
+<div class="principal">
+  <!-- ===================== Barre du haut : patient sélectionné, utilisateur, déconnexion ===================== -->
+  <header class="barre-haut">
+    @if (etroit()) {
+      <button mat-icon-button type="button" (click)="menuOuvert.set(!menuOuvert())" aria-label="Menu"
+              aria-controls="barre-laterale" [attr.aria-expanded]="menuOuvert()">
+        <mat-icon>menu</mat-icon>
+      </button>
+      <a routerLink="/" class="marque-compacte">SahtiConnect</a>
+    }
+    <span class="espace"></span>
+
+    @if (auth.utilisateur(); as u) {
+      <!-- le médecin et l'admin choisissent le patient ; un patient est toujours sur son propre dossier -->
+      @if (auth.estPatient()) {
+        <span class="patient-courant" data-testid="mon-dossier">
+          <span class="libelle-court">Mon dossier</span>
+          <span class="sc-mono">{{ session.patientId() }}</span>
+        </span>
+      } @else {
+        <label class="libelle-court" for="choix-patient-select">Patient</label>
+        <mat-form-field class="choix-patient" appearance="outline" subscriptSizing="dynamic">
+          <mat-select id="choix-patient-select" [value]="session.patientId()" (valueChange)="session.choisirPatient($event)"
+                      data-testid="choix-patient" panelWidth="auto">
+            <mat-select-trigger>
+              <span class="sc-mono">{{ session.patientId() }}</span>
+              @if (!etroit()) { &nbsp;{{ nomPatient() }} }
+            </mat-select-trigger>
+            @for (p of patients; track p.id) {
+              <mat-option [value]="p.id"><span class="sc-mono">{{ p.id }}</span>&nbsp; {{ p.nom }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      }
+      <span class="separateur" aria-hidden="true"></span>
+      <span class="utilisateur" data-testid="utilisateur" [matTooltip]="u.login + ' (' + u.roles.join(', ') + ')'">
+        @if (!etroit()) { <span class="nom">{{ u.nom }}</span> }
+        <span class="role">{{ libelleRole() }}</span>
+      </span>
+      <button mat-button type="button" (click)="auth.deconnecter()" data-testid="deconnexion">
+        @if (etroit()) { <mat-icon aria-label="Déconnexion">logout</mat-icon> } @else { Déconnexion }
+      </button>
+    } @else if (auth.connecte() === false) {
+      <button mat-flat-button type="button" (click)="auth.connecter()" data-testid="connexion">Se connecter</button>
+    }
+  </header>
+
+  <main id="contenu" class="contenu" tabindex="-1">
     <router-outlet />
-  </mat-sidenav-content>
-</mat-sidenav-container>
+  </main>
+</div>

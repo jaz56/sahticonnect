@@ -1,3 +1,4 @@
+import { isDevMode } from '@angular/core';
 import { Routes } from '@angular/router';
 import { roleGuard } from './core/auth/role.guard';
 
@@ -26,6 +27,9 @@ export const routes: Routes = [
   { path: 'admin/cnam', title: 'CNAM (SOAP) — SahtiConnect', canActivate: [roleGuard('ADMIN')], loadComponent: () => import('./pages/admin/cnam/cnam') },
 
   { path: 'acces-refuse', title: 'Accès refusé — SahtiConnect', loadComponent: () => import('./pages/acces-refuse/acces-refuse') },
+
+  // Système de design (tokens, composants) : en développement seulement (ng serve), absent du build de production
+  { path: 'design', title: 'Système de design — SahtiConnect', canMatch: [() => isDevMode()], loadComponent: () => import('./pages/design/design') },
 
   { path: '**', redirectTo: '' },
 ];

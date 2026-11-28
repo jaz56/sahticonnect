@@ -1,97 +1,287 @@
+@use '@angular/material' as mat;
+
+// Grille : [colonne de la barre latérale | zone principale]. La colonne (surface + filet) suit toute la hauteur du
+// document ; la barre latérale y reste collée en haut (sticky). Écran étroit : une seule colonne, tiroir fixe.
 :host {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
+  display: grid;
+  grid-template-columns: var(--sc-largeur-barre-laterale) minmax(0, 1fr);
+  min-height: 100vh;
+
+  &::before {
+    content: '';
+    grid-column: 1;
+    grid-row: 1;
+    background: var(--sc-surface);
+    border-right: var(--sc-trait) solid var(--sc-bordure);
+  }
 }
 
-.barre {
+.evitement {
+  position: absolute;
+  left: var(--sc-e-16);
+  top: -64px;
+  z-index: 30;
+  padding: var(--sc-e-8) var(--sc-e-12);
+  background: var(--sc-surface);
+  border: var(--sc-trait) solid var(--sc-accent);
+  border-radius: var(--sc-rayon);
+
+  &:focus {
+    top: var(--sc-e-8);
+  }
+}
+
+// ===================== Barre latérale =====================
+
+.barre-laterale {
+  grid-column: 1;
+  grid-row: 1;
   position: sticky;
   top: 0;
-  z-index: 10;
-  gap: 12px;
-  background: var(--mat-sys-surface-container);
-  border-bottom: 1px solid var(--mat-sys-outline-variant);
+  z-index: 20;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
 }
 
 .marque {
   display: flex;
   align-items: center;
-  gap: 8px;
-  color: var(--mat-sys-primary);
+  flex: none;
+  height: var(--sc-hauteur-barre-haut);
+  padding: 0 var(--sc-e-24);
+  border-bottom: var(--sc-trait) solid var(--sc-bordure);
+  font-size: var(--sc-t-20);
+  line-height: var(--sc-lh-20);
+  font-weight: var(--sc-graisse-forte);
+  letter-spacing: -0.015em;
+  color: var(--sc-encre);
   text-decoration: none;
-  font: var(--mat-sys-title-large);
+}
+
+.navigation {
+  padding: var(--sc-e-16) 0;
+
+  ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  a {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: var(--sc-e-12);
+    height: 40px;
+    padding: 0 var(--sc-e-16) 0 var(--sc-e-24);
+    color: var(--sc-encre-secondaire);
+    text-decoration: none;
+    transition: background-color var(--sc-duree) var(--sc-courbe), color var(--sc-duree) var(--sc-courbe);
+
+    &:hover {
+      background: var(--sc-fond);
+      color: var(--sc-encre);
+    }
+
+    &:focus-visible {
+      outline-offset: -2px;
+    }
+  }
+
+  // élément actif : filet d'accent à gauche, texte en encre
+  a.actif {
+    color: var(--sc-encre);
+    font-weight: var(--sc-graisse-forte);
+
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: var(--sc-e-8);
+      bottom: var(--sc-e-8);
+      width: 3px;
+      background: var(--sc-accent);
+    }
+
+    mat-icon {
+      color: var(--sc-accent);
+    }
+  }
+
+  mat-icon {
+    flex: none;
+    color: var(--sc-encre-tertiaire);
+  }
+
+  .libelle {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .protocole {
+    font-size: var(--sc-t-12);
+    line-height: var(--sc-lh-12);
+    font-weight: var(--sc-graisse-normale);
+    color: var(--sc-encre-tertiaire);
+  }
+}
+
+.titre-section {
+  margin: var(--sc-e-24) var(--sc-e-24) var(--sc-e-8);
+  font-size: var(--sc-t-12);
+  line-height: var(--sc-lh-12);
+  font-weight: var(--sc-graisse-forte);
+  color: var(--sc-encre-tertiaire);
+}
+
+.pied {
+  margin: auto 0 0;
+  padding: var(--sc-e-16) var(--sc-e-24) var(--sc-e-24);
+  font-size: var(--sc-t-12);
+  line-height: var(--sc-lh-12);
+  color: var(--sc-encre-tertiaire);
+}
+
+// ===================== Zone principale =====================
+
+.principal {
+  grid-column: 2;
+  grid-row: 1;
+  min-width: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.barre-haut {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--sc-e-12);
+  height: var(--sc-hauteur-barre-haut);
+  padding: 0 var(--sc-e-24);
+  background: var(--sc-surface);
+  border-bottom: var(--sc-trait) solid var(--sc-bordure);
 }
 
 .espace {
   flex: 1;
 }
 
-.utilisateur,
-.mon-dossier {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font: var(--mat-sys-label-large);
-
-  small {
-    color: var(--mat-sys-on-surface-variant);
-  }
+.libelle-court {
+  font-size: var(--sc-t-12);
+  line-height: var(--sc-lh-12);
+  color: var(--sc-encre-secondaire);
 }
 
-.mon-dossier {
-  padding: 4px 12px;
-  border-radius: 16px;
-  background: var(--mat-sys-secondary-container);
+.patient-courant {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sc-e-8);
 }
 
 .choix-patient {
-  width: 250px;
-  font-size: 14px;
+  width: 232px;
+  @include mat.form-field-density(-5);
+  @include mat.select-density(-5);
 }
 
-.conteneur {
-  flex: 1;
+.separateur {
+  width: 1px;
+  height: 24px;
+  background: var(--sc-bordure);
 }
 
-.menu {
-  width: 250px;
-  border-right: 1px solid var(--mat-sys-outline-variant);
-  background: var(--mat-sys-surface-container-low);
-}
+.utilisateur {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--sc-e-8);
 
-.titre-menu {
-  margin: 16px 16px 4px;
-  font: var(--mat-sys-label-large);
-  color: var(--mat-sys-on-surface-variant);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
+  .nom {
+    font-weight: var(--sc-graisse-moyenne);
+  }
 
-.actif {
-  background: var(--mat-sys-secondary-container);
-}
-
-.protocole {
-  font-size: 11px;
-  color: var(--mat-sys-outline);
-}
-
-.pied-menu {
-  margin: 24px 16px;
-  font: var(--mat-sys-body-small);
-  color: var(--mat-sys-on-surface-variant);
+  .role {
+    font-size: var(--sc-t-12);
+    line-height: var(--sc-lh-12);
+    color: var(--sc-encre-secondaire);
+  }
 }
 
 .contenu {
-  padding: 24px;
-  background: var(--mat-sys-surface);
+  flex: 1;
+  outline: none;
+}
+
+// ===================== Écran étroit : tiroir =====================
+
+.voile {
+  position: fixed;
+  inset: 0;
+  z-index: 15;
+  border: 0;
+  background: rgb(23 34 46 / 32%);
+}
+
+.marque-compacte {
+  font-size: var(--sc-t-16);
+  line-height: var(--sc-lh-16);
+  font-weight: var(--sc-graisse-forte);
+  color: var(--sc-encre);
+  text-decoration: none;
 }
 
 @media (max-width: 900px) {
-  .choix-patient {
-    width: 150px;
+  :host {
+    grid-template-columns: minmax(0, 1fr);
+
+    &::before {
+      display: none;
+    }
   }
-  .contenu {
-    padding: 12px;
+
+  .barre-laterale {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: var(--sc-largeur-barre-laterale);
+    height: auto;
+    background: var(--sc-surface);
+    border-right: var(--sc-trait) solid var(--sc-bordure);
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform var(--sc-duree-longue) var(--sc-courbe), visibility 0s linear var(--sc-duree-longue);
+
+    &.ouverte {
+      transform: none;
+      visibility: visible;
+      box-shadow: var(--sc-ombre-flottante); // le tiroir flotte au-dessus du contenu
+      transition: transform var(--sc-duree-longue) var(--sc-courbe);
+    }
+  }
+
+  .principal {
+    grid-column: 1;
+  }
+
+  .barre-haut {
+    padding: 0 var(--sc-e-8) 0 var(--sc-e-4);
+    gap: var(--sc-e-8);
+  }
+
+  .choix-patient {
+    width: 128px;
+  }
+
+  .libelle-court,
+  .separateur,
+  .utilisateur .role {
+    display: none;
   }
 }

@@ -1,0 +1,102 @@
+<div class="sc-page">
+  <app-en-tete-page [fil]="[{ libelle: 'Développement' }, { libelle: 'Système de design' }]" titre="Système de design"
+                    sousTitre="Direction « dossier clinique ». Tokens dans src/styles/_tokens.scss, composants dans src/app/shared/ui. Page visible en développement seulement." />
+
+  <app-bloc-section titre="Couleurs" sousTitre="Un seul accent ; les couleurs de gravité sont réservées aux niveaux. Contrastes mesurés (WCAG 2.2) sur la surface blanche, sauf mention.">
+    <ul class="nuancier">
+      @for (c of couleurs; track c.variable) {
+        <li>
+          <span class="echantillon" [style.background]="'var(' + c.variable + ')'"></span>
+          <span class="nom">{{ c.nom }}</span>
+          <span class="sc-mono sc-t-12">{{ c.hex }}</span>
+          <span class="sc-mono sc-t-12 sc-tertiaire">{{ c.variable }}</span>
+          <span class="sc-t-12 sc-secondaire">{{ c.usage }}</span>
+          @if (c.contraste) { <span class="sc-t-12">{{ c.contraste }}</span> }
+        </li>
+      }
+    </ul>
+  </app-bloc-section>
+
+  <app-bloc-section titre="Typographie" sousTitre="Interface : Source Sans 3 (alternative proposée : Atkinson Hyperlegible Next). Chiffres et identifiants : IBM Plex Mono, chiffres tabulaires, zéro barré. Six tailles.">
+    <table class="sc-tableau echelle">
+      <thead><tr><th scope="col">Taille / ligne</th><th scope="col">Usage</th><th scope="col">Exemple</th></tr></thead>
+      <tbody>
+        @for (t of tailles; track t.taille) {
+          <tr>
+            <td><app-valeur-mono [valeur]="t.taille + ' / ' + t.ligne" unite="px" /></td>
+            <td class="sc-secondaire">{{ t.usage }}</td>
+            <td><span [class.sc-mono]="t.mono" [style.font-size.px]="t.taille" [style.line-height.px]="t.ligne">{{ t.texte }}</span></td>
+          </tr>
+        }
+      </tbody>
+    </table>
+    <p class="chiffres"><span class="sc-mono">PAT-0001  WF-2026-000076  ALR-2026-000022  14:46:21  145,000 DT  0123456789</span></p>
+  </app-bloc-section>
+
+  <div class="deux">
+    <app-bloc-section titre="Espacements" sousTitre="Grille de 8 px : 24 dans un bloc, 16 entre blocs, 8 libellé → valeur, 12 entre boutons.">
+      <ul class="espacements">
+        @for (e of espacements; track e) {
+          <li><app-valeur-mono [valeur]="e" unite="px" /><span class="barre" [style.width.px]="e"></span></li>
+        }
+      </ul>
+    </app-bloc-section>
+
+    <app-bloc-section titre="Formes et boutons" sousTitre="Rayon 6 px (4 px pour les badges), bordures de 1 px, ombre seulement pour ce qui flotte.">
+      <div class="formes">
+        <span class="forme">Bloc, rayon 6</span>
+        <span class="forme badge-forme">Badge, rayon 4</span>
+        <span class="forme flottant">Menu flottant (ombre)</span>
+      </div>
+      <div class="sc-actions">
+        <button mat-flat-button type="button">Relancer</button>
+        <button mat-stroked-button type="button">Retour au tableau de bord</button>
+        <button mat-button type="button">Résoudre</button>
+      </div>
+    </app-bloc-section>
+  </div>
+
+  <app-bloc-section titre="Badges, valeurs, états">
+    <div class="rangee">
+      @for (n of ['CRITIQUE', 'ELEVEE', 'MODERE', 'FAIBLE', 'NORMAL', 'A_REGULARISER', 'ECHEC', 'EN_COURS', 'FACTUREE', 'COMPENSE']; track n) {
+        <app-badge-niveau [valeur]="n" />
+      }
+    </div>
+    <div class="rangee">
+      <app-valeur-mono valeur="142,5" unite="bpm" />
+      <app-valeur-mono valeur="PAT-0001" />
+      <app-valeur-mono valeur="145,000" unite="DT" />
+      <app-service-indisponible [champ]="{ chemin: 'patient.couvert', service: 'dossier-cnam', message: 'Service dossier-cnam indisponible : Connection refused' }" />
+    </div>
+    <div class="deux">
+      <app-etat-vide message="Aucune alerte pour ce patient." detail="Les alertes apparaissent ici dès que telemetrie en émet une." />
+      <app-etat-erreur message="La fiche n'a pas pu être chargée entièrement." detail="GraphQL : INTERNAL_ERROR sur patient.interventions" />
+    </div>
+  </app-bloc-section>
+
+  <app-bloc-section titre="Moniteurs de constantes" sousTitre="Couleur seulement si le niveau est anormal ; la case sélectionnée porte un filet d'accent en bas.">
+    <div class="moniteurs">
+      <app-moniteur-constante type="FREQUENCE_CARDIAQUE" libelle="Fréquence cardiaque" valeur="142,5" unite="bpm" niveau="CRITIQUE" [serie]="serieMontante" heure="14:46:21" [selectionne]="true" />
+      <app-moniteur-constante type="SPO2" libelle="SpO2" valeur="93" unite="%" niveau="ELEVEE" [serie]="[97, 96, 96, 95, 94, 93, 93]" heure="14:46:21" />
+      <app-moniteur-constante type="TEMPERATURE" libelle="Température" valeur="36,9" unite="°C" niveau="NORMAL" [serie]="serieNormale" heure="14:46:21" />
+      <app-moniteur-constante type="TENSION_DIASTOLIQUE" libelle="Tension diastolique" unite="mmHg" />
+    </div>
+  </app-bloc-section>
+
+  <app-bloc-section titre="Tableau de données" sousTitre="Lignes de 48 px, en-têtes en petites capitales, survol discret, chiffres à droite.">
+    <div class="sc-tableau-conteneur">
+      <table class="sc-tableau">
+        <thead><tr><th scope="col">Niveau</th><th scope="col">Constante</th><th scope="col" class="sc-num">Valeur</th><th scope="col">Horodatage</th><th scope="col">Référence</th></tr></thead>
+        <tbody>
+          <tr><td><app-badge-niveau valeur="CRITIQUE" /></td><td>Fréquence cardiaque</td><td class="sc-num"><app-valeur-mono valeur="142,5" unite="bpm" /></td><td><app-valeur-mono valeur="28/11/2026 14:46" /></td><td><app-valeur-mono valeur="ALR-2026-000022" /></td></tr>
+          <tr><td><app-badge-niveau valeur="ELEVEE" /></td><td>Tension systolique</td><td class="sc-num"><app-valeur-mono valeur="172" unite="mmHg" /></td><td><app-valeur-mono valeur="28/11/2026 09:30" /></td><td><app-valeur-mono valeur="ALR-2026-000021" /></td></tr>
+          <tr class="sc-selectionne"><td><app-badge-niveau valeur="FAIBLE" /></td><td>Température (ligne sélectionnée)</td><td class="sc-num"><app-valeur-mono valeur="38,6" unite="°C" /></td><td><app-valeur-mono valeur="27/11/2026 22:10" /></td><td><app-valeur-mono valeur="ALR-2026-000020" /></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </app-bloc-section>
+
+  <app-bloc-section titre="Frise verticale d'un workflow" sousTitre="Étape réussie, échec relancé (tentative 2), étape en cours, étapes à venir, compensations.">
+    <app-frise-workflow [workflow]="workflow" />
+  </app-bloc-section>
+</div>

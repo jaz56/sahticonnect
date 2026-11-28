@@ -1,0 +1,204 @@
+// Styles partagés des composants du système de design (classes sc-*). Globaux : utilisés par plusieurs composants
+// et écrans, et le budget Angular limite la taille des styles propres à chaque composant.
+
+// ===================== Page =====================
+
+.sc-page {
+  max-width: var(--sc-largeur-contenu);
+  margin: 0 auto;
+  padding: var(--sc-e-24) var(--sc-e-32) var(--sc-e-64);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sc-e-16);
+}
+
+@media (max-width: 900px) {
+  .sc-page {
+    padding: var(--sc-e-16) var(--sc-e-16) var(--sc-e-48);
+  }
+}
+
+// ===================== Tableau de données =====================
+// Lignes de 48 px, en-têtes en petites capitales, survol discret, chiffres en mono alignés à droite.
+
+.sc-tableau-conteneur {
+  overflow-x: auto;
+  // le tableau va jusqu'aux bords du bloc : ses cellules portent la marge de 24 px
+  margin: 0 calc(-1 * var(--sc-e-24));
+}
+
+table.sc-tableau {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--sc-t-14);
+  line-height: var(--sc-lh-14);
+  background: transparent;
+
+  th,
+  td {
+    height: var(--sc-hauteur-ligne-tableau);
+    padding: 0 var(--sc-e-12);
+    text-align: left;
+    vertical-align: middle;
+    border-bottom: var(--sc-trait) solid var(--sc-bordure);
+    white-space: nowrap;
+  }
+
+  th:first-child,
+  td:first-child {
+    padding-left: var(--sc-e-24);
+  }
+
+  th:last-child,
+  td:last-child {
+    padding-right: var(--sc-e-24);
+  }
+
+  th {
+    height: 40px;
+    font-size: var(--sc-t-14);
+    font-weight: var(--sc-graisse-forte);
+    font-variant-caps: all-small-caps;
+    letter-spacing: 0.04em;
+    color: var(--sc-encre-secondaire);
+    border-bottom-color: var(--sc-bordure-forte);
+  }
+
+  tbody tr {
+    transition: background-color var(--sc-duree) var(--sc-courbe);
+  }
+
+  tbody tr:hover {
+    background: var(--sc-surface-sourde);
+  }
+
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .sc-num {
+    text-align: right;
+  }
+
+  .sc-large {
+    white-space: normal;
+    min-width: 200px;
+    max-width: 360px;
+  }
+
+  // ligne sélectionnable (clic ou Entrée)
+  tr.sc-selectionnable {
+    cursor: pointer;
+  }
+
+  tr.sc-selectionne {
+    background: var(--sc-accent-pale);
+    box-shadow: inset 3px 0 0 var(--sc-accent);
+  }
+
+  tr.sc-selectionne:hover {
+    background: var(--sc-accent-pale);
+  }
+}
+
+// mat-table (historique paginé) : même apparence
+.mat-mdc-table.sc-tableau {
+  --mat-table-row-item-container-height: var(--sc-hauteur-ligne-tableau);
+  --mat-table-header-container-height: 40px;
+  --mat-table-row-item-outline-color: var(--sc-bordure);
+  --mat-table-background-color: transparent;
+  --mat-table-header-headline-color: var(--sc-encre-secondaire);
+  --mat-table-row-item-label-text-font: var(--sc-police);
+  --mat-table-header-headline-font: var(--sc-police);
+  --mat-table-row-item-label-text-size: var(--sc-t-14);
+  --mat-table-header-headline-size: var(--sc-t-14);
+}
+
+// texte long dans une cellule : 2 lignes au plus (la ligne garde ses 48 px), texte complet dans l'infobulle title
+.sc-deux-lignes {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+// ===================== Libellé / valeur =====================
+
+.sc-champs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: var(--sc-e-16) var(--sc-e-24);
+  margin: 0;
+
+  div {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sc-e-8);   // 8 px entre un libellé et sa valeur
+    min-width: 0;
+  }
+
+  dt {
+    font-size: var(--sc-t-12);
+    line-height: var(--sc-lh-12);
+    color: var(--sc-encre-secondaire);
+  }
+
+  dd {
+    margin: 0;
+    font-size: var(--sc-t-14);
+    line-height: var(--sc-lh-14);
+    color: var(--sc-encre);
+    overflow-wrap: anywhere;
+  }
+}
+
+// ===================== Boutons et rangées d'actions =====================
+
+.sc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sc-e-12);   // 12 px entre deux boutons
+}
+
+.sc-filtres {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--sc-e-12);
+
+  .mat-mdc-form-field {
+    width: 220px;
+  }
+}
+
+// bouton texte compact (lien d'action dans une ligne de tableau)
+.sc-bouton-ligne.mat-mdc-button {
+  --mat-button-text-container-height: 32px;
+  --mat-button-text-horizontal-padding: var(--sc-e-8);
+}
+
+// ===================== Texte =====================
+
+.sc-secondaire {
+  color: var(--sc-encre-secondaire);
+}
+
+.sc-tertiaire {
+  color: var(--sc-encre-tertiaire);
+}
+
+.sc-t-12 {
+  font-size: var(--sc-t-12);
+  line-height: var(--sc-lh-12);
+}
+
+// ===================== Barre de progression (chargement) =====================
+
+.sc-chargement {
+  height: 2px;
+  --mat-progress-bar-active-indicator-color: var(--sc-accent);
+  --mat-progress-bar-track-color: var(--sc-accent-pale);
+  --mat-progress-bar-track-height: 2px;
+  --mat-progress-bar-active-indicator-height: 2px;
+}

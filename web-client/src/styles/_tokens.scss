@@ -1,0 +1,83 @@
+// =====================================================================================================================
+// Tokens de design SahtiConnect, direction « dossier clinique ». Une seule source : tout le reste (thème Material,
+// composants, écrans) lit ces variables. Changer une police ou l'accent = changer une ligne ici.
+// Contrastes vérifiés (WCAG 2.2) : voir la page /design (développement) et docs/design-system.md.
+// =====================================================================================================================
+
+:root {
+  // ---------- Couleurs de base ----------
+  --sc-fond: #f6f5f2;              // blanc cassé chaud (fond de page)
+  --sc-surface: #ffffff;           // blocs, tableaux, barres
+  --sc-surface-sourde: #faf9f7;    // survol de ligne, zone en retrait
+  --sc-encre: #17222e;             // texte principal, bleu-noir (16,1:1 sur surface)
+  --sc-encre-secondaire: #5e5a54;  // texte secondaire, gris chaud (6,9:1)
+  --sc-encre-tertiaire: #76716a;   // métadonnées, unités (4,8:1)
+  --sc-bordure: #e2dfd9;           // filets et bordures de 1 px
+  --sc-bordure-forte: #8f8a82;     // contour des contrôles (3,4:1, non-texte)
+
+  // ---------- Accent unique : bleu-vert profond ----------
+  --sc-accent: #0f5c63;            // 7,7:1 sur surface
+  --sc-accent-pale: #e4efef;       // sélection, élément actif
+  --sc-sur-accent: #ffffff;
+
+  // ---------- Gravité : réservée aux niveaux (et à l'état ECHEC / À régulariser) ----------
+  --sc-critique: #a4161a;          // 6,7:1 sur son fond pâle
+  --sc-critique-pale: #fbeaea;
+  --sc-elevee: #8a4b00;            // ambre, 6,1:1 sur son fond pâle
+  --sc-elevee-pale: #fcf1df;
+  --sc-neutre: #4a4f57;            // NORMAL, FAIBLE, MODÉRÉ (7,0:1)
+  --sc-neutre-pale: #eeedea;
+
+  // ---------- Typographie ----------
+  // Interface : Source Sans 3 (humaniste). Alternative proposée : 'Atkinson Hyperlegible Next Variable'.
+  --sc-police: 'Source Sans 3 Variable', 'Segoe UI', system-ui, sans-serif;
+  // Chiffres et identifiants (constantes, PAT-, WF-, ALR-, heures, montants) : IBM Plex Mono, chiffres tabulaires
+  --sc-police-mono: 'IBM Plex Mono', 'Cascadia Mono', Consolas, monospace;
+
+  // Échelle de 6 tailles, chacune avec sa hauteur de ligne (multiples de 4)
+  --sc-t-12: 12px; --sc-lh-12: 16px;   // métadonnées, en-têtes de tableau, badges
+  --sc-t-14: 14px; --sc-lh-14: 20px;   // texte courant de l'interface, cellules
+  --sc-t-16: 16px; --sc-lh-16: 24px;   // titres de bloc, texte de lecture
+  --sc-t-20: 20px; --sc-lh-20: 28px;   // logo, sous-titres forts
+  --sc-t-24: 24px; --sc-lh-24: 32px;   // titre de page
+  --sc-t-32: 32px; --sc-lh-32: 40px;   // valeur d'un moniteur de constante
+
+  --sc-graisse-normale: 400;
+  --sc-graisse-moyenne: 500;
+  --sc-graisse-forte: 600;
+
+  // ---------- Espacements : grille de 8 px stricte ----------
+  --sc-e-4: 4px;
+  --sc-e-8: 8px;     // libellé → valeur
+  --sc-e-12: 12px;   // entre deux boutons
+  --sc-e-16: 16px;   // entre deux blocs (minimum), élément interactif ↔ bordure (minimum)
+  --sc-e-24: 24px;   // marge interne d'un bloc
+  --sc-e-32: 32px;
+  --sc-e-48: 48px;
+  --sc-e-64: 64px;
+
+  // ---------- Formes ----------
+  --sc-rayon: 6px;
+  --sc-rayon-badge: 4px;
+  --sc-trait: 1px;
+  --sc-ombre-flottante: 0 4px 16px rgb(23 34 46 / 12%), 0 1px 3px rgb(23 34 46 / 8%); // menus, dialogues SEULEMENT
+
+  // ---------- Structure ----------
+  --sc-largeur-contenu: 1280px;
+  --sc-largeur-barre-laterale: 240px;
+  --sc-hauteur-barre-haut: 48px;
+  --sc-hauteur-ligne-tableau: 48px;
+  --sc-icone: 20px;
+
+  // ---------- Mouvement ----------
+  --sc-duree: 160ms;
+  --sc-duree-longue: 200ms;
+  --sc-courbe: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --sc-duree: 0ms;
+    --sc-duree-longue: 0ms;
+  }
+}

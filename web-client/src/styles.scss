@@ -1,21 +1,14 @@
-// Thème Material 3 clair et sobre (bleu azur + cyan), adapté à une application médicale.
-@use '@angular/material' as mat;
+// Styles globaux : système de design « dossier clinique » (styles/), puis les classes des écrans pas encore refaits.
+// Polices hébergées avec l'application (angular.json → styles) : aucune requête vers un service de polices externe.
+@use 'styles/tokens';
+@use 'styles/theme';
+@use 'styles/base';
+@use 'styles/composants';
 
 html {
   height: 100%;
-  @include mat.theme(
-    (
-      color: (
-        primary: mat.$azure-palette,
-        tertiary: mat.$cyan-palette,
-        theme-type: light,
-      ),
-      typography: Roboto,
-      density: 0,
-    )
-  );
 
-  // Couleurs des niveaux (alertes, risque, statuts), lisibles sur fond clair
+  // Couleurs des niveaux des écrans pas encore refaits (pastilles), inchangées en phase A
   --sahti-critique: #b3261e;
   --sahti-critique-fond: #fce8e6;
   --sahti-elevee: #a25600;
@@ -27,20 +20,14 @@ html {
   --sahti-neutre-fond: #eceff4;
 }
 
-body {
-  color-scheme: light;
-  background-color: var(--mat-sys-surface);
-  color: var(--mat-sys-on-surface);
-  font: var(--mat-sys-body-medium);
-  margin: 0;
-  height: 100%;
-}
-
-// ===================== Mise en page des écrans =====================
+// =====================================================================================================================
+// Écrans pas encore refaits (phase B) : classes d'origine, conservées telles quelles
+// =====================================================================================================================
 
 .page {
   max-width: 1200px;
   margin: 0 auto;
+  padding: 24px;
 }
 
 .page h1 {
@@ -82,12 +69,11 @@ body {
 
 .mono,
 pre.xml {
-  font-family: 'Cascadia Code', Consolas, monospace;
   font-size: 12px;
 }
 
 pre.xml {
-  background: var(--mat-sys-surface-container);
+  background: var(--sc-fond);
   border-radius: 8px;
   padding: 12px;
   overflow: auto;
@@ -99,8 +85,6 @@ pre.xml {
 table.tableau {
   width: 100%;
 }
-
-// ===================== Pastilles de niveau =====================
 
 .pastille {
   display: inline-flex;
@@ -117,8 +101,6 @@ table.tableau {
 .pastille.ELEVE, .pastille.ELEVEE, .pastille.A_REGULARISER, .pastille.PRISE_EN_CHARGE { color: var(--sahti-elevee); background: var(--sahti-elevee-fond); }
 .pastille.MODERE, .pastille.EN_ATTENTE { color: var(--sahti-modere); background: var(--sahti-modere-fond); }
 .pastille.FAIBLE, .pastille.FACTUREE, .pastille.RESOLUE, .pastille.OK, .pastille.CONFIRME, .pastille.TERMINEE { color: var(--sahti-faible); background: var(--sahti-faible-fond); }
-
-// annulé par compensation (saga) : ni succès ni échec
 .pastille.COMPENSE, .pastille.ANNULEE, .pastille.ANNULE { color: #5b3f8c; background: #efe7fb; }
 
 // ===================== Snackbars =====================

@@ -30,6 +30,10 @@
               }
             ],
             "styles": [
+              "@fontsource-variable/source-sans-3/wght.css",
+              "@fontsource/ibm-plex-mono/400.css",
+              "@fontsource/ibm-plex-mono/500.css",
+              "@fontsource-variable/material-symbols-outlined/wght.css",
               "src/styles.scss"
             ]
           },
