@@ -1,4 +1,4 @@
-﻿# SahtiConnect – Projet Service Oriented Computing (3ING GINF, ENICarthage)
+# SahtiConnect – Projet Service Oriented Computing (3ING GINF, ENICarthage)
 
 Projet individuel. Plateforme Smart Healthcare : 4 services, chacun avec un protocole différent,
 un orchestrateur, une API Gateway et un client web Angular. Tout est dockerisé.
@@ -125,7 +125,7 @@ Une base PostgreSQL par service (database-per-service).
     menu selon les rôles du jeton, patient limité à son `patient_id`, écran `/acces-refuse` ; WebSocket `?access_token=` ;
     SSE via `@microsoft/fetch-event-source` (en-tête Authorization).
   - Scripts `-ViaGateway` : jeton via `docs/tests/jeton-keycloak.ps1` (client `scripts`, `-Utilisateur`, admin par défaut).
-- [ ] Bonus 3 : identifiant de corrélation dans tous les services
+- [x] Bonus 3 : identifiant de corrélation dans tous les services
   - Classe `Correlation` recopiée dans chaque service (paquetage `correlation`, pas de bibliothèque partagée) : en-tête
     `X-Correlation-Id`, métadonnée gRPC `x-correlation-id`, clé MDC `correlationId`, valeur `[A-Za-z0-9._:-]{1,64}` sinon UUID.
   - Entrée : `FiltreCorrelation` (servlet, portail/dashboard/cnam/orchestrateur, une ligne par requête sauf /actuator) ;
