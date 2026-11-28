@@ -1,45 +1,51 @@
 <ol class="frise" aria-label="Étapes du workflow">
   @for (c of cases(); track c.nom; let i = $index) {
-    <li class="case" [class]="c.statut" [attr.data-etape]="c.nom" [attr.data-statut]="c.statut">
-      <div class="puce">
-        <mat-icon [class.tourne]="c.statut === 'EN_COURS'">{{ icone(c.statut) }}</mat-icon>
-      </div>
-      <div class="texte">
-        <div class="nom">{{ i + 1 }}. {{ c.libelle }}</div>
-        @if (c.etape; as e) {
-          <div class="meta">
-            {{ e.statut }} · {{ e.dureeMs | number: '1.0-0' }} ms
-            @if (e.tentative > 1) { · tentative {{ e.tentative }} }
-          </div>
-          <div class="meta">{{ e.horodatage | date: 'HH:mm:ss' }}</div>
-          @if (e.message) {
-            <div class="message" [matTooltip]="e.message">{{ e.message }}</div>
-          }
-        } @else {
-          <div class="meta">{{ c.statut === 'EN_COURS' ? 'en cours…' : 'à venir' }}</div>
-        }
+    <li class="etape" [class]="'etape ' + c.statut" [attr.data-etape]="c.nom" [attr.data-statut]="c.statut">
+      <span class="heure sc-mono">{{ c.etape ? (c.etape.horodatage | date: 'HH:mm:ss') : '' }}</span>
+      <span class="rail" aria-hidden="true"><span class="noeud"></span></span>
+      <div class="corps">
+        <div class="ligne">
+          <span class="titre">
+            <span class="nom">{{ i + 1 }}. {{ c.libelle }}</span>
+            <span class="statut">{{ libelleStatut(c.statut) }}</span>
+            @if (c.etape && c.etape.tentative > 1) { <span class="tentative">tentative <span class="sc-mono">{{ c.etape.tentative }}</span></span> }
+          </span>
+          <span class="duree sc-mono">@if (c.etape; as e) { {{ e.dureeMs | number: '1.0-0' }} ms }</span>
+        </div>
+        <p class="message" [attr.title]="c.etape?.message">
+          @if (c.etape?.message; as m) { {{ m }} }
+          @else if (c.statut === 'EN_COURS') { Étape en cours d'exécution. }
+          @else if (!c.etape) { En attente des étapes précédentes. }
+        </p>
       </div>
     </li>
   }
 </ol>
 
 @if (compensations().length > 0) {
-  <h4 class="titre-compensation">
-    Compensation (saga d'escalade{{ workflow().compensePar ? ' déclenchée par ' + workflow().compensePar : '' }}) :
-    ordre inverse des étapes
-  </h4>
-  <ol class="frise compensation" aria-label="Compensations">
-    @for (c of compensations(); track $index) {
-      <li class="case" [class]="c.statut" [attr.data-compensation]="c.nom" [attr.data-statut]="c.statut">
-        <div class="puce"><mat-icon>{{ c.statut === 'OK' ? 'undo' : icone(c.statut) }}</mat-icon></div>
-        <div class="texte">
-          <div class="nom">{{ c.libelle }}</div>
-          @if (c.etape; as e) {
-            <div class="meta">{{ e.statut }} · {{ e.dureeMs | number: '1.0-0' }} ms · {{ e.horodatage | date: 'HH:mm:ss' }}</div>
-            @if (e.message) { <div class="message" [matTooltip]="e.message">{{ e.message }}</div> }
-          }
-        </div>
-      </li>
-    }
-  </ol>
+  <section class="compensation" aria-labelledby="titre-compensation">
+    <h4 id="titre-compensation">
+      Compensation (saga d'escalade{{ workflow().compensePar ? ' déclenchée par ' + workflow().compensePar : '' }}) :
+      ordre inverse des étapes
+    </h4>
+    <ol class="frise" aria-label="Compensations">
+      @for (c of compensations(); track $index) {
+        <li class="etape annulation" [class]="'etape annulation ' + c.statut" [attr.data-compensation]="c.nom" [attr.data-statut]="c.statut">
+          <span class="heure sc-mono">{{ c.etape ? (c.etape.horodatage | date: 'HH:mm:ss') : '' }}</span>
+          <span class="rail" aria-hidden="true"><span class="noeud"></span></span>
+          <div class="corps">
+            <div class="ligne">
+              <span class="titre">
+                <mat-icon class="retour" aria-hidden="true">undo</mat-icon>
+                <span class="nom">{{ c.libelle }}</span>
+                <span class="statut">{{ libelleStatut(c.statut) }}</span>
+              </span>
+              <span class="duree sc-mono">@if (c.etape; as e) { {{ e.dureeMs | number: '1.0-0' }} ms }</span>
+            </div>
+            <p class="message" [attr.title]="c.etape?.message">{{ c.etape?.message }}</p>
+          </div>
+        </li>
+      }
+    </ol>
+  </section>
 }

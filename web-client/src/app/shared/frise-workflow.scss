@@ -1,88 +1,195 @@
+// Frise verticale : [heure] [rail + nœud] [nom, statut, durée / message sur 2 lignes réservées].
+// Chaque ligne a une hauteur fixe : l'arrivée d'un message ou d'une heure (flux SSE) ne déplace rien.
+
 .frise {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(0, 1fr);
-  gap: 8px;
-  list-style: none;
   margin: 0;
   padding: 0;
+  list-style: none;
 }
 
-.case {
+.etape {
+  display: grid;
+  grid-template-columns: 64px 24px minmax(0, 1fr);
+  column-gap: var(--sc-e-12);
+  min-height: 72px;
+}
+
+.heure {
+  padding-top: 2px;
+  text-align: right;
+  font-size: var(--sc-t-12);
+  line-height: var(--sc-lh-12);
+  color: var(--sc-encre-secondaire);
+}
+
+// rail vertical : accent entre deux étapes réussies, filet neutre ailleurs
+.rail {
   position: relative;
-  padding: 12px;
-  border-radius: 12px;
-  border: 1px solid var(--mat-sys-outline-variant);
-  background: var(--mat-sys-surface-container-lowest);
+  display: flex;
+  justify-content: center;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 14px;
+    bottom: -4px;
+    width: 2px;
+    background: var(--sc-bordure);
+  }
+}
+
+.etape:last-child .rail::before {
+  display: none;
+}
+
+.etape.OK .rail::before {
+  background: var(--sc-accent);
+}
+
+// nœuds : forme ET couleur (jamais la couleur seule ; le statut est aussi écrit)
+.noeud {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  margin-top: 2px;
+  border-radius: 50%;
+  border: 2px solid var(--sc-bordure-forte);
+  background: var(--sc-surface);
+}
+
+.OK .noeud {
+  border-color: var(--sc-accent);
+  background: var(--sc-accent);
+}
+
+.ECHEC .noeud {
+  border-radius: 2px;
+  border-color: var(--sc-critique);
+  background: var(--sc-critique);
+}
+
+.EN_COURS .noeud {
+  border-color: var(--sc-accent);
+  box-shadow: 0 0 0 3px var(--sc-accent-pale);
+}
+
+.IGNOREE .noeud {
+  border-style: dashed;
+}
+
+.corps {
+  padding-bottom: var(--sc-e-16);
   min-width: 0;
 }
 
-.puce mat-icon {
-  color: var(--mat-sys-outline);
+// [nom, statut, tentative] [durée] : la durée garde sa colonne, le titre passe à la ligne si besoin
+.ligne {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: var(--sc-e-12);
 }
 
-.case.OK {
-  border-color: var(--sahti-faible);
-  background: var(--sahti-faible-fond);
-  .puce mat-icon { color: var(--sahti-faible); }
-}
-
-.case.ECHEC {
-  border-color: var(--sahti-critique);
-  background: var(--sahti-critique-fond);
-  .puce mat-icon { color: var(--sahti-critique); }
-}
-
-.case.IGNOREE {
-  background: var(--sahti-neutre-fond);
-}
-
-.case.EN_COURS {
-  border-color: var(--mat-sys-primary);
-  .puce mat-icon { color: var(--mat-sys-primary); }
+.titre {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--sc-e-4) var(--sc-e-8);
+  min-width: 0;
 }
 
 .nom {
-  font: var(--mat-sys-title-small);
-  margin-top: 4px;
+  font-weight: var(--sc-graisse-forte);
+  color: var(--sc-encre);
 }
 
-.meta {
-  font: var(--mat-sys-body-small);
-  color: var(--mat-sys-on-surface-variant);
+.A_VENIR .nom {
+  font-weight: var(--sc-graisse-normale);
+  color: var(--sc-encre-secondaire);
 }
 
+.statut,
+.tentative {
+  font-size: var(--sc-t-12);
+  line-height: var(--sc-lh-12);
+  color: var(--sc-encre-secondaire);
+}
+
+.ECHEC .statut {
+  color: var(--sc-critique);
+  font-weight: var(--sc-graisse-forte);
+}
+
+.EN_COURS .statut {
+  color: var(--sc-accent);
+  font-weight: var(--sc-graisse-forte);
+}
+
+.duree {
+  min-width: 56px;
+  text-align: right;
+  font-size: var(--sc-t-12);
+  line-height: var(--sc-lh-12);
+  color: var(--sc-encre-secondaire);
+}
+
+// message : toujours 2 lignes réservées (texte complet dans l'infobulle title)
 .message {
-  margin-top: 6px;
-  font: var(--mat-sys-body-small);
+  margin: var(--sc-e-4) 0 0;
+  min-height: calc(2 * var(--sc-lh-14));
+  color: var(--sc-encre-secondaire);
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.tourne {
-  animation: rotation 1.2s linear infinite;
+.A_VENIR .message {
+  color: var(--sc-encre-tertiaire);
 }
 
-@keyframes rotation {
-  to { transform: rotate(360deg); }
-}
+// ===================== Compensations (saga) : zone en retrait, filet à gauche, nœuds carrés évidés =====================
 
-.titre-compensation {
-  margin: 16px 0 8px;
-  font: var(--mat-sys-title-small);
-  color: #5b3f8c;
-}
+.compensation {
+  margin-top: var(--sc-e-8);
+  padding: var(--sc-e-16) var(--sc-e-16) 0 0;
+  background: var(--sc-surface-sourde);
+  border-left: 3px solid var(--sc-encre-secondaire);
+  border-radius: 0 var(--sc-rayon) var(--sc-rayon) 0;
 
-.frise.compensation .case.OK {
-  border-color: #5b3f8c;
-  background: #efe7fb;
-  .puce mat-icon { color: #5b3f8c; }
-}
+  h4 {
+    margin: 0 0 var(--sc-e-16) var(--sc-e-16);
+    font-size: var(--sc-t-14);
+    line-height: var(--sc-lh-14);
+    font-weight: var(--sc-graisse-forte);
+    color: var(--sc-encre);
+  }
 
-@media (max-width: 900px) {
-  .frise {
-    grid-auto-flow: row;
+  .etape {
+    grid-template-columns: 61px 24px minmax(0, 1fr); // 3 px de filet absorbés : rails alignés avec la frise principale
+  }
+
+  .noeud {
+    border-radius: 2px;
+    border-color: var(--sc-encre-secondaire);
+    background: var(--sc-surface);
+  }
+
+  .OK .noeud {
+    background: var(--sc-encre-secondaire);
+  }
+
+  .rail::before,
+  .etape.OK .rail::before {
+    background: var(--sc-bordure-forte);
+  }
+
+  .retour {
+    --sc-icone: 16px;
+    font-size: 16px;
+    align-self: center;
+    color: var(--sc-encre-secondaire);
   }
 }

@@ -1,55 +1,107 @@
+@use '@angular/material' as mat;
+
+// Indicateur du flux SSE : voyant (plein si connecté, évidé sinon) + texte explicite
 .flux {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  margin-left: 8px;
-  color: var(--sahti-elevee);
+  gap: var(--sc-e-8);
+  font-size: var(--sc-t-12);
+  line-height: var(--sc-lh-12);
+  color: var(--sc-encre-secondaire);
 
-  &.ok {
-    color: var(--sahti-faible);
+  .voyant {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    border: 2px solid var(--sc-bordure-forte);
+    box-sizing: border-box;
   }
 
-  mat-icon {
-    font-size: 18px;
-    height: 18px;
-    width: 18px;
+  &.connecte .voyant {
+    border-color: var(--sc-accent);
+    background: var(--sc-accent);
   }
 }
 
-.filtres {
-  margin-bottom: 12px;
+.sc-filtres {
+  @include mat.form-field-density(-4);
+  @include mat.select-density(-4);
 }
 
+// Tableau à gauche, détail à droite (collé en haut pendant le défilement)
 .disposition {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) minmax(0, 3fr);
-  gap: 16px;
+  grid-template-columns: minmax(0, 1fr) minmax(480px, 1fr);
+  gap: var(--sc-e-16);
   align-items: start;
 }
 
-.liste {
-  max-height: 70vh;
-  overflow: auto;
+// le tableau défile dans son bloc (en-têtes fixes) : tableau et détail restent visibles côte à côte
+.defilement {
+  max-height: max(360px, calc(100vh - 340px));
+  overflow-y: auto;
+
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--sc-surface);
+  }
 }
 
-.etat.FACTUREE { color: var(--sahti-faible); }
-.etat.ECHEC { color: var(--sahti-critique); }
-
-.resume {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 8px 16px;
-  margin-top: 16px;
+.detail {
+  position: sticky;
+  top: calc(var(--sc-hauteur-barre-haut) + var(--sc-e-16));
 }
 
-.libelle {
-  display: block;
-  font: var(--mat-sys-label-medium);
-  color: var(--mat-sys-on-surface-variant);
+.panneau {
+  background: var(--sc-surface);
+  border: var(--sc-trait) solid var(--sc-bordure);
+  border-radius: var(--sc-rayon);
+  padding: var(--sc-e-24);
+
+  .tete {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sc-e-16);
+    min-height: 40px;
+    padding-bottom: var(--sc-e-12);
+    border-bottom: var(--sc-trait) solid var(--sc-bordure);
+  }
+
+  .titres {
+    display: flex;
+    align-items: center;
+    gap: var(--sc-e-12);
+  }
+
+  h2 {
+    margin: 0;
+    font-size: var(--sc-t-20);
+    line-height: var(--sc-lh-20);
+    font-weight: var(--sc-graisse-moyenne);
+  }
+
+  h3 {
+    margin: var(--sc-e-24) 0 var(--sc-e-16);
+    font-size: var(--sc-t-14);
+    line-height: var(--sc-lh-14);
+    font-weight: var(--sc-graisse-forte);
+    color: var(--sc-encre);
+  }
+
+  .contexte {
+    margin-top: var(--sc-e-16);
+  }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1100px) {
   .disposition {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .detail {
+    position: static;
   }
 }

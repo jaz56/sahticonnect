@@ -1,183 +1,214 @@
-<div class="page">
-  <a mat-button routerLink="/medecin/tableau-de-bord"><mat-icon>arrow_back</mat-icon> Tableau de bord</a>
-  @if (chargement()) { <mat-progress-bar mode="indeterminate" /> }
+<div class="sc-page">
+  <!-- ===================== En-tête façon dossier : identité, prise en charge, risque, couverture ===================== -->
+  @let p = fiche();
+  <app-en-tete-page [fil]="fil()" [titre]="p ? p.prenom + ' ' + p.nom : id()">
+    @if (p) {
+      <dl class="dossier sc-champs">
+        <div><dt>Identifiant</dt><dd><app-valeur-mono [valeur]="p.id" /></dd></div>
+        <div><dt>Âge</dt><dd><app-valeur-mono [valeur]="p.age" unite="ans" /></dd></div>
+        <div><dt>Né(e) le</dt><dd><app-valeur-mono [valeur]="p.dateNaissance | date: 'dd/MM/yyyy'" /></dd></div>
+        <div><dt>Service</dt><dd>{{ p.service }}</dd></div>
+        <div><dt>Pathologie</dt><dd>{{ p.pathologie }}</dd></div>
+        <div><dt>Médecin référent</dt><dd>{{ p.medecinReferent }}</dd></div>
+        <div><dt>Niveau de risque</dt><dd><app-badge-niveau [valeur]="p.niveauRisque" /></dd></div>
+        <div>
+          <dt>Couverture CNAM</dt>
+          <dd data-testid="couverture">
+            @if (indisponible('patient.couvert'); as champ) {
+              <app-service-indisponible [champ]="champ" />
+            } @else if (p.couvert) {
+              Couvert à <app-valeur-mono [valeur]="p.tauxRemboursement" unite="%" />
+            } @else {
+              <app-badge-niveau valeur="A_REGULARISER" libelle="Non couvert (à régulariser)" />
+            }
+          </dd>
+        </div>
+      </dl>
+    }
+  </app-en-tete-page>
 
-  @if (introuvable()) { <p class="vide">Patient {{ id() }} inconnu.</p> }
-  @for (e of erreurs(); track e) { <p class="vide">{{ e }}</p> }
+  @if (chargement()) { <mat-progress-bar class="sc-chargement" mode="indeterminate" aria-label="Chargement de la fiche" /> }
+  @if (introuvable()) {
+    <app-etat-vide [message]="'Aucun patient suivi ne porte l\'identifiant ' + id() + '.'">
+      <a mat-stroked-button routerLink="/medecin/tableau-de-bord">Retour au tableau de bord</a>
+    </app-etat-vide>
+  }
+  @for (e of erreurs(); track e) {
+    <app-etat-erreur message="La fiche n'a pas pu être chargée entièrement." [detail]="e" />
+  }
 
-  @if (fiche(); as p) {
-    <div class="entete">
-      <div>
-        <h1>{{ p.prenom }} {{ p.nom }} <app-pastille [valeur]="p.niveauRisque" /></h1>
-        <p class="sous-titre">
-          <span class="mono">{{ p.id }}</span> · {{ p.age }} ans · {{ p.service }} · {{ p.pathologie }}
-          · {{ p.medecinReferent }}
-        </p>
-      </div>
-      <div class="couverture" data-testid="couverture">
-        <span class="libelle">Couverture CNAM (SOAP)</span>
-        @if (indisponible('patient.couvert'); as champ) {
-          <app-service-indisponible [champ]="champ" />
-        } @else {
-          @if (p.couvert) {
-            <app-pastille valeur="FAIBLE" [libelle]="'Couvert · ' + p.tauxRemboursement + ' %'" />
-          } @else {
-            <app-pastille valeur="ELEVEE" libelle="Non couvert (à régulariser)" />
-          }
+  @if (p) {
+    <!-- ===================== Constantes : moniteurs + courbe détaillée (gRPC telemetrie via le dashboard) ===================== -->
+    <app-bloc-section titre="Constantes vitales"
+                      sousTitre="Dernières mesures du capteur, actualisées toutes les 5 s. Source : gRPC DernieresMesures (telemetrie), via le dashboard GraphQL.">
+      <span actions class="sc-t-12 sc-secondaire">
+        Dernière mesure <app-valeur-mono [valeur]="derniereMesure()" />
+      </span>
+      @if (indisponible('patient.constantes'); as champ) {
+        <p class="avertissement"><app-service-indisponible [champ]="champ" /> Valeurs affichées : dernières reçues.</p>
+      }
+      <div class="moniteurs" role="group" aria-label="Constantes : choisir la courbe détaillée">
+        @for (m of moniteurs(); track m.type) {
+          <app-moniteur-constante [type]="m.type" [libelle]="m.libelle" [valeur]="m.valeur" [unite]="m.unite"
+                                  [niveau]="m.niveau" [serie]="m.serie" [heure]="m.heure"
+                                  [selectionne]="m.type === typeGraphique()" (choisir)="typeGraphique.set(m.type)" />
         }
       </div>
-    </div>
 
-    <div class="colonnes">
-      <!-- ===================== Constantes (gRPC telemetrie via le dashboard) ===================== -->
-      <mat-card class="carte constantes" appearance="outlined">
-        <mat-card-header>
-          <mat-icon matCardAvatar>vital_signs</mat-icon>
-          <mat-card-title>Constantes</mat-card-title>
-          <mat-card-subtitle>gRPC DernieresMesures via le dashboard · rafraîchies toutes les 5 s</mat-card-subtitle>
-        </mat-card-header>
-        <mat-card-content>
-          @if (indisponible('patient.constantes'); as champ) {
-            <app-service-indisponible [champ]="champ" />
-          }
-          <div class="dernieres">
-            @for (c of dernieres(); track c.type) {
-              <div class="tuile" [class]="c.niveau ?? 'NORMAL'">
-                <span class="libelle">{{ libellesConstantes[c.type] }}</span>
-                <span class="valeur-cle">{{ c.valeur | number: '1.0-1' }} <small>{{ c.unite }}</small></span>
-                @if (c.niveau) { <app-pastille [valeur]="c.niveau" /> }
-              </div>
-            } @empty {
-              @if (!indisponible('patient.constantes')) { <p class="vide">Aucune mesure reçue (capteur arrêté ?).</p> }
-            }
+      <div class="tendance">
+        <h3>
+          Tendance : {{ libellesConstantes[typeGraphique()] }}
+          <span class="sc-secondaire">({{ unites[typeGraphique()] }}, {{ serieGraphique().length }} dernières mesures)</span>
+        </h3>
+        @if (serieGraphique().length > 0) {
+          <div class="graphique">
+            <canvas baseChart type="line" [data]="donneesGraphique()" [options]="optionsGraphique()"
+                    [attr.aria-label]="'Courbe : ' + libellesConstantes[typeGraphique()]" role="img"></canvas>
           </div>
-          <mat-button-toggle-group [value]="typeGraphique()" (change)="typeGraphique.set($event.value)" class="types">
-            @for (t of typesConstantes; track t) {
-              <mat-button-toggle [value]="t">{{ libellesConstantes[t] }}</mat-button-toggle>
-            }
-          </mat-button-toggle-group>
-          @if (donneesGraphique().datasets[0].data.length > 0) {
-            <div class="graphique">
-              <canvas baseChart type="line" [data]="donneesGraphique()" [options]="optionsGraphique"></canvas>
-            </div>
-          } @else {
-            <p class="vide">Pas encore de mesure de ce type.</p>
-          }
-        </mat-card-content>
-      </mat-card>
+        } @else {
+          <app-etat-vide message="Aucune mesure de cette constante pour l'instant."
+                         detail="Les mesures apparaissent ici dès que le capteur du patient les transmet." />
+        }
+      </div>
+    </app-bloc-section>
 
-      <!-- ===================== Alertes ===================== -->
-      <mat-card class="carte" appearance="outlined">
-        <mat-card-header>
-          <mat-icon matCardAvatar>notifications</mat-icon>
-          <mat-card-title>Alertes</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          @for (a of p.alertes; track a.id) {
-            <div class="alerte" [attr.data-alerte]="a.id">
-              <div class="tete-alerte">
-                <app-pastille [valeur]="a.niveau" />
-                <app-pastille [valeur]="a.statut" />
-                <small class="mono">{{ a.horodatage | date }}</small>
-                <span class="espace"></span>
-                @if (a.statut !== 'RESOLUE') {
-                  <button mat-button (click)="resoudre(a.id)" data-testid="resoudre"><mat-icon>task_alt</mat-icon> Résoudre</button>
-                }
-              </div>
-              <div>{{ a.message ?? a.seuilFranchi }}</div>
-              <small class="mono">{{ a.id }}</small>
-            </div>
-          } @empty {
-            <p class="vide">Aucune alerte.</p>
-          }
-        </mat-card-content>
-      </mat-card>
-    </div>
+    <!-- ===================== Alertes ===================== -->
+    <app-bloc-section titre="Alertes" [sousTitre]="p.alertes.length + ' alerte(s), la plus récente en premier'">
+      @if (p.alertes.length > 0) {
+        <div class="sc-tableau-conteneur">
+          <table class="sc-tableau">
+            <thead>
+              <tr>
+                <th scope="col">Niveau</th>
+                <th scope="col">Statut</th>
+                <th scope="col">Constante</th>
+                <th scope="col" class="sc-num">Valeur</th>
+                <th scope="col">Détail</th>
+                <th scope="col">Horodatage</th>
+                <th scope="col">Référence</th>
+                <th scope="col"><span class="sc-masque">Action</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (a of p.alertes; track a.id) {
+                <tr [attr.data-alerte]="a.id">
+                  <td><app-badge-niveau [valeur]="a.niveau" /></td>
+                  <td><app-badge-niveau [valeur]="a.statut" /></td>
+                  <td>{{ libellesConstantes[a.typeConstante] }}</td>
+                  <td class="sc-num"><app-valeur-mono [valeur]="valeurAlerte(a.valeur)" [unite]="unites[a.typeConstante]" /></td>
+                  <td class="sc-large"><span class="sc-deux-lignes" [title]="a.message ?? a.seuilFranchi">{{ a.message ?? a.seuilFranchi }}</span></td>
+                  <td><app-valeur-mono [valeur]="a.horodatage | date: 'dd/MM/yyyy HH:mm'" /></td>
+                  <td><app-valeur-mono [valeur]="a.id" /></td>
+                  <td class="sc-num">
+                    @if (a.statut !== 'RESOLUE') {
+                      <button mat-button class="sc-bouton-ligne" type="button" (click)="resoudre(a.id)" data-testid="resoudre"
+                              [attr.aria-label]="'Résoudre l\'alerte ' + a.id">Résoudre</button>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <app-etat-vide message="Aucune alerte pour ce patient." />
+      }
+    </app-bloc-section>
 
-    <div class="colonnes">
-      <!-- ===================== Interventions ===================== -->
-      <mat-card class="carte" appearance="outlined">
-        <mat-card-header>
-          <mat-icon matCardAvatar>medical_services</mat-icon>
-          <mat-card-title>Interventions</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          @for (i of p.interventions; track i.id) {
-            <div class="intervention">
-              <div>
-                <b>{{ libelleIntervention(i.type) }}</b> <span class="mono">{{ i.id }}</span>
-                <div><small>{{ i.description }}</small></div>
-                <small class="mono">{{ i.referenceExterne }} · {{ i.numeroFeuilleSoins }} · {{ i.dateCreation | date }}</small>
-              </div>
-              <div class="droite">
-                <app-pastille [valeur]="i.statutFacturation" />
-                <div class="valeur-cle">{{ i.montantTotal | dt }}</div>
-              </div>
-            </div>
-          } @empty {
-            <p class="vide">Aucune intervention.</p>
-          }
-        </mat-card-content>
-      </mat-card>
+    <!-- ===================== Interventions ===================== -->
+    <app-bloc-section titre="Interventions" sousTitre="Déclenchées par l'orchestrateur à la suite des alertes">
+      @if (p.interventions.length > 0) {
+        <div class="sc-tableau-conteneur">
+          <table class="sc-tableau">
+            <thead>
+              <tr>
+                <th scope="col">Type</th>
+                <th scope="col">Description</th>
+                <th scope="col">Fiche</th>
+                <th scope="col">Référence</th>
+                <th scope="col">Feuille de soins</th>
+                <th scope="col">Facturation</th>
+                <th scope="col" class="sc-num">Montant</th>
+                <th scope="col">Créée le</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (i of p.interventions; track i.id) {
+                <tr [attr.data-intervention]="i.id">
+                  <td>{{ libelleIntervention(i.type) }}</td>
+                  <td class="sc-large"><span class="sc-deux-lignes" [title]="i.description">{{ i.description }}</span></td>
+                  <td><app-valeur-mono [valeur]="i.id" /></td>
+                  <td><app-valeur-mono [valeur]="i.referenceExterne" /></td>
+                  <td><app-valeur-mono [valeur]="i.numeroFeuilleSoins" /></td>
+                  <td><app-badge-niveau [valeur]="i.statutFacturation" /></td>
+                  <td class="sc-num"><app-valeur-mono [valeur]="i.montantTotal | dt" /></td>
+                  <td><app-valeur-mono [valeur]="i.dateCreation | date: 'dd/MM/yyyy HH:mm'" /></td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <app-etat-vide message="Aucune intervention pour ce patient." />
+      }
+    </app-bloc-section>
 
+    <div class="pile">
       <!-- ===================== Traitements ===================== -->
-      <mat-card class="carte" appearance="outlined">
-        <mat-card-header>
-          <mat-icon matCardAvatar>medication</mat-icon>
-          <mat-card-title>Traitements en cours</mat-card-title>
-        </mat-card-header>
-        <mat-card-content>
-          @for (t of p.traitements; track t.id) {
-            <div class="traitement">
-              <b>{{ t.medicament }}</b> · {{ t.posologie }}
-              <div><small>{{ t.prescripteur }} · du {{ t.dateDebut | date: 'dd/MM/yyyy' }} au {{ t.dateFin | date: 'dd/MM/yyyy' }}</small></div>
-            </div>
-          } @empty {
-            <p class="vide">Aucun traitement actif.</p>
-          }
-        </mat-card-content>
-      </mat-card>
-    </div>
+      <app-bloc-section titre="Traitements en cours">
+        @if (p.traitements.length > 0) {
+          <ul class="traitements">
+            @for (t of p.traitements; track t.id) {
+              <li>
+                <span class="medicament">{{ t.medicament }}</span>
+                <span>{{ t.posologie }}</span>
+                <span class="sc-t-12 sc-secondaire">
+                  {{ t.prescripteur }}, du <app-valeur-mono [valeur]="t.dateDebut | date: 'dd/MM/yyyy'" />
+                  au <app-valeur-mono [valeur]="t.dateFin | date: 'dd/MM/yyyy'" />
+                </span>
+              </li>
+            }
+          </ul>
+        } @else {
+          <app-etat-vide message="Aucun traitement actif." />
+        }
+      </app-bloc-section>
 
-    <!-- ===================== Historique de soins (SOAP CNAM via le dashboard, paginé) ===================== -->
-    <mat-card class="carte" appearance="outlined">
-      <mat-card-header>
-        <mat-icon matCardAvatar>history</mat-icon>
-        <mat-card-title>Historique de soins</mat-card-title>
-        <mat-card-subtitle>query historiqueSoins(page, taille) · SOAP consulterHistorique via le dashboard</mat-card-subtitle>
-      </mat-card-header>
-      <mat-card-content>
+      <!-- ===================== Historique de soins (SOAP CNAM via le dashboard, paginé) ===================== -->
+      <app-bloc-section titre="Historique de soins" sousTitre="Source : SOAP consulterHistorique (CNAM), via le dashboard GraphQL">
         @if (historiqueIndisponible(); as champ) {
           <app-service-indisponible [champ]="champ" />
         } @else if (historique(); as h) {
-          <table mat-table [dataSource]="h.elements" class="tableau">
-            <ng-container matColumnDef="date">
-              <th mat-header-cell *matHeaderCellDef>Date</th>
-              <td mat-cell *matCellDef="let e">{{ e.date | date: 'dd/MM/yyyy' }}</td>
-            </ng-container>
-            <ng-container matColumnDef="etablissement">
-              <th mat-header-cell *matHeaderCellDef>Établissement</th>
-              <td mat-cell *matCellDef="let e">{{ e.etablissement }}</td>
-            </ng-container>
-            <ng-container matColumnDef="diagnostic">
-              <th mat-header-cell *matHeaderCellDef>Diagnostic</th>
-              <td mat-cell *matCellDef="let e">{{ e.diagnostic }}</td>
-            </ng-container>
-            <ng-container matColumnDef="actes">
-              <th mat-header-cell *matHeaderCellDef>Actes</th>
-              <td mat-cell *matCellDef="let e" class="mono">{{ actes(e) }}</td>
-            </ng-container>
-            <ng-container matColumnDef="numeroFeuilleSoins">
-              <th mat-header-cell *matHeaderCellDef>Feuille</th>
-              <td mat-cell *matCellDef="let e" class="mono">{{ e.numeroFeuilleSoins }}</td>
-            </ng-container>
-            <tr mat-header-row *matHeaderRowDef="colonnesHistorique"></tr>
-            <tr mat-row *matRowDef="let e; columns: colonnesHistorique"></tr>
-          </table>
+          <div class="sc-tableau-conteneur">
+            <table mat-table [dataSource]="h.elements" class="sc-tableau">
+              <ng-container matColumnDef="date">
+                <th mat-header-cell *matHeaderCellDef>Date</th>
+                <td mat-cell *matCellDef="let e"><app-valeur-mono [valeur]="e.date | date: 'dd/MM/yyyy'" /></td>
+              </ng-container>
+              <ng-container matColumnDef="etablissement">
+                <th mat-header-cell *matHeaderCellDef>Établissement</th>
+                <td mat-cell *matCellDef="let e">{{ e.etablissement }}</td>
+              </ng-container>
+              <ng-container matColumnDef="diagnostic">
+                <th mat-header-cell *matHeaderCellDef>Diagnostic</th>
+                <td mat-cell *matCellDef="let e" class="sc-large"><span class="sc-deux-lignes" [title]="e.diagnostic">{{ e.diagnostic }}</span></td>
+              </ng-container>
+              <ng-container matColumnDef="actes">
+                <th mat-header-cell *matHeaderCellDef>Actes</th>
+                <td mat-cell *matCellDef="let e"><app-valeur-mono [valeur]="actes(e)" /></td>
+              </ng-container>
+              <ng-container matColumnDef="numeroFeuilleSoins">
+                <th mat-header-cell *matHeaderCellDef>Feuille</th>
+                <td mat-cell *matCellDef="let e"><app-valeur-mono [valeur]="e.numeroFeuilleSoins" /></td>
+              </ng-container>
+              <tr mat-header-row *matHeaderRowDef="colonnesHistorique"></tr>
+              <tr mat-row *matRowDef="let e; columns: colonnesHistorique"></tr>
+            </table>
+          </div>
           <mat-paginator [length]="h.totalElements" [pageSize]="tailleHistorique" [pageIndex]="pageHistorique()"
-                         [hidePageSize]="true" (page)="changerPage($event)" />
+                         [hidePageSize]="true" (page)="changerPage($event)" aria-label="Pages de l'historique" />
         }
-      </mat-card-content>
-    </mat-card>
+      </app-bloc-section>
+    </div>
   }
 </div>

@@ -4,6 +4,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { Etape, Workflow } from '../api/orchestrateur';
 import { ETAPES_WORKFLOW, LIBELLES_COMPENSATIONS, LIBELLES_ETAPES } from './libelles';
+import { libelleNiveau } from './ui/badge-niveau';
 
 export interface CaseFrise {
   nom: string;
@@ -14,7 +15,8 @@ export interface CaseFrise {
 }
 
 /**
- * Frise des 5 étapes d'un workflow : statut, durée et message de la dernière exécution de chaque étape
+ * Frise VERTICALE des 5 étapes d'un workflow (heure, nœud, nom, statut, durée, message sur 2 lignes réservées :
+ * la mise à jour en direct ne fait rien bouger) : dernière exécution de chaque étape
  * (une étape relancée apparaît avec son numéro de tentative). Saga d'escalade : l'étape ESCALADE d'un workflow
  * CRITIQUE s'insère avant l'intervention ; les compensations d'un workflow ELEVEE forment une seconde ligne,
  * dans l'ordre où elles ont été exécutées (l'inverse des étapes d'origine).
@@ -55,13 +57,5 @@ export class FriseWorkflow {
       .map((e) => ({ nom: e.nom, libelle: LIBELLES_COMPENSATIONS[e.nom] ?? e.nom, statut: e.statut, etape: e })),
   );
 
-  protected icone(statut: string): string {
-    switch (statut) {
-      case 'OK': return 'check_circle';
-      case 'ECHEC': return 'error';
-      case 'IGNOREE': return 'do_not_disturb_on';
-      case 'EN_COURS': return 'progress_activity';
-      default: return 'radio_button_unchecked';
-    }
-  }
+  protected readonly libelleStatut = libelleNiveau;
 }

@@ -2,12 +2,9 @@ import { Component, DestroyRef, computed, effect, inject, input, signal, untrack
 import { DatePipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subscription } from 'rxjs';
-import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatListModule } from '@angular/material/list';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { EtatWorkflow, OrchestrateurService, Workflow } from '../../../api/orchestrateur';
 import { FluxWorkflowsService } from '../../../core/flux-workflows.service';
@@ -16,18 +13,18 @@ import { PATIENTS } from '../../../core/session.service';
 import { DtPipe } from '../../../core/dt.pipe';
 import { FriseWorkflow } from '../../../shared/frise-workflow';
 import { fusionnerWorkflows, plusRecent } from './fusion-workflows';
-import { Pastille } from '../../../shared/pastille';
+import { BadgeNiveau, BlocSection, ElementFil, EnTetePage, EtatVide, ValeurMono, libelleNiveau } from '../../../shared/ui';
 import { LIBELLES_ETAPES, LIBELLES_INTERVENTIONS, libelle } from '../../../shared/libelles';
 
 /**
- * Workflows de l'orchestrateur : liste (REST, filtres patient et état), détail en frise des 5 étapes,
+ * Workflows de l'orchestrateur : tableau (REST, filtres patient et état), détail en frise verticale des étapes,
  * mise à jour en direct par le flux SSE ; « Relancer » pour un workflow en ECHEC.
  */
 @Component({
   selector: 'app-workflows',
   imports: [
-    DatePipe, DtPipe, MatCardModule, MatFormFieldModule, MatSelectModule, MatButtonModule, MatIconModule, MatListModule,
-    MatProgressBarModule, FriseWorkflow, Pastille,
+    DatePipe, DtPipe, MatFormFieldModule, MatSelectModule, MatButtonModule, MatProgressBarModule, FriseWorkflow,
+    BadgeNiveau, BlocSection, EnTetePage, EtatVide, ValeurMono,
   ],
   templateUrl: './workflows.html',
   styleUrl: './workflows.scss',
@@ -54,6 +51,8 @@ export default class Workflows {
   protected readonly dernierEvenement = signal<Date | null>(null);
   protected readonly libelleEtape = (c?: string) => libelle(LIBELLES_ETAPES, c);
   protected readonly libelleIntervention = (c?: string) => libelle(LIBELLES_INTERVENTIONS, c);
+  protected readonly libelleEtat = libelleNiveau;
+  protected readonly fil: ElementFil[] = [{ libelle: 'Administration' }, { libelle: 'Workflows' }];
 
   constructor() {
     effect(() => {
