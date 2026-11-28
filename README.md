@@ -492,7 +492,7 @@ jeton Keycloak avec le client `scripts` ([`docs/tests/jeton-keycloak.ps1`](docs/
 | GraphQL | [`docs/tests/graphql/tester-graphql.ps1`](docs/tests/graphql/tester-graphql.ps1) | Queries, mutations, erreurs et une subscription en WebSocket |
 | Orchestrateur | [`docs/tests/orchestrateur/tester-orchestrateur.ps1`](docs/tests/orchestrateur/tester-orchestrateur.ps1) | Déclenchement manuel, suivi des étapes, idempotence, relance, erreurs |
 | Bout en bout | [`docs/tests/e2e/demo.ps1`](docs/tests/e2e/demo.ps1) | Capteur → telemetrie → orchestrateur → CNAM, portail, dashboard |
-| Client web | `cd web-client; npm test` | 36 tests unitaires (Vitest) : SOAP, intercepteurs (erreurs, jeton), gardes de rôle, SSE, pipe DT, fiche partielle, frise |
+| Client web | `cd web-client; npm test` | 40 tests unitaires (Vitest) : SOAP, intercepteurs (erreurs, jeton), gardes de rôle, SSE, fusion liste REST + flux SSE, pipe DT, fiche partielle, frise |
 | Client web | `cd web-client; npm run e2e` | Playwright contre la stack Docker, avec connexion Keycloak : ahmed prend un RDV ; ahmed bloqué sur l'écran médecin et sur le dossier d'un autre (403) ; alerte en direct chez dr.chaabane → FACTUREE chez admin ; saga chez admin |
 | Sécurité | `cd api-gateway; .\mvnw.cmd verify` | Matrice rôle × route, 401/403 (JSON et SOAP Fault), X-Patient-Id injecté et usurpation supprimée, jeton WebSocket, routes publiques |
 | Corrélation | `.\mvnw.cmd verify` (chaque service) | Filtre (en-tête repris, généré, refusé s'il est invalide ; MDC sur un autre thread), intercepteurs gRPC serveur et client, SOAP via l'exécuteur du dashboard, workflow de l'orchestrateur : même identifiant sur tous ses appels SOAP/REST/GraphQL (requête HTTP, puis alerte gRPC → WF-…) |

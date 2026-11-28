@@ -1,6 +1,7 @@
 import { Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subscription } from 'rxjs';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
@@ -14,6 +15,7 @@ import { NotificationService } from '../../../core/notification.service';
 import { PATIENTS } from '../../../core/session.service';
 import { DtPipe } from '../../../core/dt.pipe';
 import { FriseWorkflow } from '../../../shared/frise-workflow';
+import { fusionnerWorkflows, plusRecent } from './fusion-workflows';
 import { Pastille } from '../../../shared/pastille';
 import { LIBELLES_ETAPES, LIBELLES_INTERVENTIONS, libelle } from '../../../shared/libelles';
 
@@ -34,6 +36,8 @@ export default class Workflows {
   private readonly orchestrateur = inject(OrchestrateurService);
   private readonly notifications = inject(NotificationService);
   protected readonly flux = inject(FluxWorkflowsService);
+  private readonly destroyRef = inject(DestroyRef);
+  private chargementEnCours?: Subscription;
 
   /** ?id=WF-… : workflow à ouvrir (lien « Suivre le workflow » de l'accueil). */
   readonly id = input<string>();
@@ -73,23 +77,29 @@ export default class Workflows {
     });
 
     // flux SSE : chaque changement d'état d'un workflow remplace (ou ajoute) sa ligne
-    this.flux.workflows$.pipe(takeUntilDestroyed(inject(DestroyRef))).subscribe((wf) => {
+    this.flux.workflows$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((wf) => {
       this.dernierEvenement.set(new Date());
       if (!this.correspondAuxFiltres(wf)) {
         return;
       }
       this.workflows.update((liste) => {
+        const affiche = liste.find((w) => w.id === wf.id);
         const sans = liste.filter((w) => w.id !== wf.id);
-        return [wf, ...sans].sort((a, b) => b.dateCreation.localeCompare(a.dateCreation));
+        return [affiche ? plusRecent(affiche, wf) : wf, ...sans].sort((a, b) => b.dateCreation.localeCompare(a.dateCreation));
       });
     });
+    this.destroyRef.onDestroy(() => this.chargementEnCours?.unsubscribe());
   }
 
   private charger(patientId?: string, etat?: EtatWorkflow): void {
+    // une seule liste attendue à la fois (chargement initial, filtres, resynchronisation SSE) : la requête précédente
+    // est annulée, sinon sa réponse, plus ancienne, pourrait arriver après la nouvelle
+    this.chargementEnCours?.unsubscribe();
     this.chargement.set(true);
-    this.orchestrateur.listerWorkflows({ patientId, etat }).subscribe({
+    this.chargementEnCours = this.orchestrateur.listerWorkflows({ patientId, etat }).subscribe({
       next: (liste) => {
-        this.workflows.set(liste);
+        // fusion et non remplacement : un événement SSE plus récent que l'instantané REST est conservé
+        this.workflows.update((affiches) => fusionnerWorkflows(liste, affiches, (wf) => this.correspondAuxFiltres(wf)));
         this.chargement.set(false);
         if (!this.selectionId() && liste.length > 0) {
           this.selectionId.set(liste[0].id);

@@ -116,12 +116,13 @@ Avec Docker, le client fait partie de la stack : `docker compose up --build -d`,
 ## Tester
 
 ```powershell
-npm test                   # 36 tests unitaires (Vitest) :
+npm test                   # 40 tests unitaires (Vitest) :
                            #  - CnamSoapService : enveloppes des 4 opérations, réponses, Fault Client, Fault de la gateway, transport ;
                            #  - intercepteur d'erreurs : schéma Erreur, X-Correlation-Id, details par champ, SANS_NOTIFICATION ;
                            #  - intercepteur de jeton : Bearer vers la gateway seulement, pas sur /actuator/health ni vers Keycloak ;
                            #  - gardes de rôle : non connecté → Keycloak, rôle absent → /acces-refuse ; lecture du jeton (rôles, patient_id) ;
                            #  - pipe dt ; flux SSE (en-tête Authorization, reconnexion avec délai croissant et jeton frais, désabonnement) ;
+                           #  - fusion liste REST + flux SSE (workflows) : une réponse REST plus ancienne n'écrase pas un état reçu par SSE ;
                            #  - composants : fiche patient avec réponse partielle (puces), frise du workflow (statuts, relance)
 
 # Bonus Playwright, contre la stack Docker complète (docker compose up -d) ; inclut la saga d'escalade (badge « Compensé »)
